@@ -58,6 +58,13 @@ const filterTypeLabels = {
     4: 'NOTCH'
 };
 
+const instrumentPalette = [
+    '#ff6b6b', '#f7b731', '#26de81', '#45aaf2',
+    '#a55eea', '#fd9644', '#2bcbba', '#778ca3',
+    '#fed330', '#0fb9b1', '#fc5c65', '#4b7bec',
+    '#f368e0', '#20bf6b', '#a5b1c2', '#e84393'
+];
+
 const padSampleMetadata = new Array(16).fill(null);
 const DEFAULT_SAMPLE_QUALITY = '44.1kHz • 16-bit mono';
 
@@ -520,6 +527,30 @@ function updatePadLoopVisual(padIndex) {
     } else {
         pad.classList.remove('looping', 'loop-paused');
     }
+
+    updateTrackLoopVisual(padIndex);
+}
+
+function updateTrackLoopVisual(trackIndex) {
+    const label = document.querySelector(`.track-label[data-track="${trackIndex}"]`);
+    const steps = document.querySelectorAll(`.seq-step[data-track="${trackIndex}"]`);
+    const state = padLoopState[trackIndex];
+    if (!label) return;
+
+    if (state && state.active) {
+        label.classList.add('looping');
+        steps.forEach(step => step.classList.add('looping'));
+        if (state.paused) {
+            label.classList.add('loop-paused');
+            steps.forEach(step => step.classList.add('loop-paused'));
+        } else {
+            label.classList.remove('loop-paused');
+            steps.forEach(step => step.classList.remove('loop-paused'));
+        }
+    } else {
+        label.classList.remove('looping', 'loop-paused');
+        steps.forEach(step => step.classList.remove('looping', 'loop-paused'));
+    }
 }
 
 // Create Sequencer
@@ -561,9 +592,14 @@ function createSequencer() {
         const name = document.createElement('span');
         name.textContent = trackNames[track];
         name.style.color = trackColors[track];
+
+        const loopIndicator = document.createElement('span');
+        loopIndicator.className = 'loop-indicator';
+        loopIndicator.textContent = 'LOOP';
         
         label.appendChild(muteBtn);
         label.appendChild(name);
+        label.appendChild(loopIndicator);
         label.style.borderColor = trackColors[track];
         grid.appendChild(label);
         
@@ -668,23 +704,42 @@ function setupControls() {
         });
     });
     
-    // Volume slider
-    const volumeSlider = document.getElementById('volumeSlider');
-    const volumeValue = document.getElementById('volumeValue');
+    // Sequencer volume slider
+    const sequencerVolumeSlider = document.getElementById('sequencerVolumeSlider');
+    const sequencerVolumeValue = document.getElementById('sequencerVolumeValue');
     
-    volumeSlider.addEventListener('input', (e) => {
+    sequencerVolumeSlider.addEventListener('input', (e) => {
         const volume = e.target.value;
-        volumeValue.textContent = volume;
-        updateVolumeMeter(parseInt(volume, 10));
+        sequencerVolumeValue.textContent = volume;
+        updateSequencerVolumeMeter(parseInt(volume, 10));
     });
     
-    volumeSlider.addEventListener('change', (e) => {
+    sequencerVolumeSlider.addEventListener('change', (e) => {
         const volume = parseInt(e.target.value);
         sendWebSocket({
-            cmd: 'setVolume',
+            cmd: 'setSequencerVolume',
             value: volume
         });
-        console.log(`Volume set to ${volume}%`);
+        console.log(`Sequencer volume set to ${volume}%`);
+    });
+    
+    // Live pads volume slider
+    const liveVolumeSlider = document.getElementById('liveVolumeSlider');
+    const liveVolumeValue = document.getElementById('liveVolumeValue');
+    
+    liveVolumeSlider.addEventListener('input', (e) => {
+        const volume = e.target.value;
+        liveVolumeValue.textContent = volume;
+        updateLiveVolumeMeter(parseInt(volume, 10));
+    });
+    
+    liveVolumeSlider.addEventListener('change', (e) => {
+        const volume = parseInt(e.target.value);
+        sendWebSocket({
+            cmd: 'setLiveVolume',
+            value: volume
+        });
+        console.log(`Live volume set to ${volume}%`);
     });
     
     // Pattern buttons
@@ -802,9 +857,13 @@ function initHeaderMeters() {
     if (tempoSlider) {
         updateBpmMeter(parseFloat(tempoSlider.value));
     }
-    const volumeSlider = document.getElementById('volumeSlider');
-    if (volumeSlider) {
-        updateVolumeMeter(parseInt(volumeSlider.value, 10));
+    const sequencerVolumeSlider = document.getElementById('sequencerVolumeSlider');
+    if (sequencerVolumeSlider) {
+        updateSequencerVolumeMeter(parseInt(sequencerVolumeSlider.value, 10));
+    }
+    const liveVolumeSlider = document.getElementById('liveVolumeSlider');
+    if (liveVolumeSlider) {
+        updateLiveVolumeMeter(parseInt(liveVolumeSlider.value, 10));
     }
     updateFilterMeter();
 }
@@ -832,11 +891,26 @@ function updateBpmMeter(value) {
     }
 }
 
-function updateVolumeMeter(value) {
+function updateSequencerVolumeMeter(value) {
     if (typeof value !== 'number' || isNaN(value)) return;
-    const display = document.getElementById('meterVolumeValue');
-    const bar = document.getElementById('meterVolumeBar');
-    const slider = document.getElementById('volumeSlider');
+    const display = document.getElementById('meterSequencerVolumeValue');
+    const bar = document.getElementById('meterSequencerVolumeBar');
+    const slider = document.getElementById('sequencerVolumeSlider');
+    if (!display || !bar || !slider) return;
+    display.textContent = `${Math.round(value)}%`;
+    const min = parseInt(slider.min, 10) || 0;
+    const max = parseInt(slider.max, 10) || 100;
+    bar.style.width = `${getNormalizedPercentage(value, min, max).toFixed(1)}%`;
+    if (bar.parentElement) {
+        bar.parentElement.classList.add('active');
+    }
+}
+
+function updateLiveVolumeMeter(value) {
+    if (typeof value !== 'number' || isNaN(value)) return;
+    const display = document.getElementById('meterLiveVolumeValue');
+    const bar = document.getElementById('meterLiveVolumeBar');
+    const slider = document.getElementById('liveVolumeSlider');
     if (!display || !bar || !slider) return;
     display.textContent = `${Math.round(value)}%`;
     const min = parseInt(slider.min, 10) || 0;
@@ -893,13 +967,43 @@ function updateSequencerState(data) {
         tempoValue.textContent = data.tempo;
         updateBpmMeter(parseFloat(data.tempo));
     }
-    if (data.volume !== undefined) {
-        const volumeSlider = document.getElementById('volumeSlider');
-        const volumeValue = document.getElementById('volumeValue');
-        if (volumeSlider && volumeValue) {
-            volumeSlider.value = data.volume;
-            volumeValue.textContent = data.volume;
-            updateVolumeMeter(parseInt(data.volume, 10));
+    if (data.sequencerVolume !== undefined) {
+        const sequencerVolumeSlider = document.getElementById('sequencerVolumeSlider');
+        const sequencerVolumeValue = document.getElementById('sequencerVolumeValue');
+        if (sequencerVolumeSlider && sequencerVolumeValue) {
+            sequencerVolumeSlider.value = data.sequencerVolume;
+            sequencerVolumeValue.textContent = data.sequencerVolume;
+            updateSequencerVolumeMeter(parseInt(data.sequencerVolume, 10));
+        }
+    }
+    if (data.liveVolume !== undefined) {
+        const liveVolumeSlider = document.getElementById('liveVolumeSlider');
+        const liveVolumeValue = document.getElementById('liveVolumeValue');
+        if (liveVolumeSlider && liveVolumeValue) {
+            liveVolumeSlider.value = data.liveVolume;
+            liveVolumeValue.textContent = data.liveVolume;
+            updateLiveVolumeMeter(parseInt(data.liveVolume, 10));
+        }
+    }
+    if (Array.isArray(data.loopActive)) {
+        data.loopActive.forEach((active, track) => {
+            if (!padLoopState[track]) {
+                padLoopState[track] = { active: false, paused: false };
+            }
+            padLoopState[track].active = !!active;
+        });
+    }
+    if (Array.isArray(data.loopPaused)) {
+        data.loopPaused.forEach((paused, track) => {
+            if (!padLoopState[track]) {
+                padLoopState[track] = { active: false, paused: false };
+            }
+            padLoopState[track].paused = !!paused;
+        });
+    }
+    if (Array.isArray(data.loopActive) || Array.isArray(data.loopPaused)) {
+        for (let track = 0; track < padNames.length; track++) {
+            updatePadLoopVisual(track);
         }
     }
     
@@ -925,6 +1029,18 @@ function sendWebSocket(data) {
 }
 
 // ============= AUDIO VISUALIZERS =============
+
+function hexToRgb(hex) {
+    if (!hex || typeof hex !== 'string') return { r: 255, g: 0, b: 0 };
+    const normalized = hex.replace('#', '');
+    if (normalized.length !== 6) return { r: 255, g: 0, b: 0 };
+    const intVal = parseInt(normalized, 16);
+    return {
+        r: (intVal >> 16) & 255,
+        g: (intVal >> 8) & 255,
+        b: intVal & 255
+    };
+}
 
 function initVisualizers() {
     const spectrumCanvas = document.getElementById('spectrumCanvas');
@@ -989,25 +1105,18 @@ function initVisualizers() {
             const x = i * barWidth;
             const y = height - barHeight;
             
-            // Create gradient based on frequency
+            // Create gradient based on instrument palette
             const gradient = spectrumCtx.createLinearGradient(x, y, x, height);
-            
-            // Color based on frequency band
-            if (i < 16) {
-                // Low frequencies - Red
-                gradient.addColorStop(0, '#FF0000');
-                gradient.addColorStop(0.5, '#FF4444');
-                gradient.addColorStop(1, '#880000');
-            } else if (i < 40) {
-                // Mid frequencies - Orange/Yellow
-                gradient.addColorStop(0, '#FFaa00');
-                gradient.addColorStop(0.5, '#FF8800');
-                gradient.addColorStop(1, '#884400');
+            if (document.body.classList.contains('mono-mode')) {
+                gradient.addColorStop(0, 'rgba(255, 80, 80, 0.95)');
+                gradient.addColorStop(0.55, 'rgba(255, 0, 0, 0.75)');
+                gradient.addColorStop(1, 'rgba(120, 0, 0, 0.35)');
             } else {
-                // High frequencies - Yellow/Green
-                gradient.addColorStop(0, '#FFFF00');
-                gradient.addColorStop(0.5, '#AAFF00');
-                gradient.addColorStop(1, '#448800');
+                const paletteColor = instrumentPalette[i % instrumentPalette.length];
+                const { r, g, b } = hexToRgb(paletteColor);
+                gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.95)`);
+                gradient.addColorStop(0.5, `rgba(${r}, ${g}, ${b}, 0.65)`);
+                gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0.25)`);
             }
             
             spectrumCtx.fillStyle = gradient;
@@ -1016,7 +1125,9 @@ function initVisualizers() {
             // Glow effect on peaks
             if (value > 200) {
                 spectrumCtx.shadowBlur = 10;
-                spectrumCtx.shadowColor = '#FF0000';
+                spectrumCtx.shadowColor = document.body.classList.contains('mono-mode')
+                    ? '#ff3b3b'
+                    : instrumentPalette[i % instrumentPalette.length];
                 spectrumCtx.fillRect(x, y, barWidth - 1, barHeight);
                 spectrumCtx.shadowBlur = 0;
             }
@@ -1088,6 +1199,18 @@ function setupKeyboardControls() {
         else if (key === ']') {
             e.preventDefault();
             adjustBPM(5);
+        }
+        
+        // A: Bajar volumen del sequencer
+        else if (key === 'A') {
+            e.preventDefault();
+            adjustSequencerVolume(-5);
+        }
+        
+        // S: Subir volumen del sequencer
+        else if (key === 'S') {
+            e.preventDefault();
+            adjustSequencerVolume(5);
         }
         
         // -: Bajar Volumen
@@ -1171,27 +1294,52 @@ function adjustBPM(change) {
 }
 
 function adjustVolume(change) {
-    const volumeSlider = document.getElementById('volumeSlider');
-    const volumeValue = document.getElementById('volumeValue');
+    const liveVolumeSlider = document.getElementById('liveVolumeSlider');
+    const liveVolumeValue = document.getElementById('liveVolumeValue');
     
-    if (volumeSlider && volumeValue) {
-        let currentVolume = parseInt(volumeSlider.value);
+    if (liveVolumeSlider && liveVolumeValue) {
+        let currentVolume = parseInt(liveVolumeSlider.value);
         let newVolume = currentVolume + change;
         
         // Limitar entre 0 y 100
         newVolume = Math.max(0, Math.min(100, newVolume));
         
-        volumeSlider.value = newVolume;
-        volumeValue.textContent = newVolume;
-        updateVolumeMeter(newVolume);
+        liveVolumeSlider.value = newVolume;
+        liveVolumeValue.textContent = newVolume;
+        updateLiveVolumeMeter(newVolume);
         
         // Enviar al ESP32
         sendWebSocket({
-            cmd: 'setVolume',
+            cmd: 'setLiveVolume',
             value: newVolume
         });
         
-        console.log(`Volume: ${newVolume}%`);
+        console.log(`Live Volume: ${newVolume}%`);
+    }
+}
+
+function adjustSequencerVolume(change) {
+    const sequencerVolumeSlider = document.getElementById('sequencerVolumeSlider');
+    const sequencerVolumeValue = document.getElementById('sequencerVolumeValue');
+    
+    if (sequencerVolumeSlider && sequencerVolumeValue) {
+        let currentVolume = parseInt(sequencerVolumeSlider.value);
+        let newVolume = currentVolume + change;
+        
+        // Limitar entre 0 y 100
+        newVolume = Math.max(0, Math.min(100, newVolume));
+        
+        sequencerVolumeSlider.value = newVolume;
+        sequencerVolumeValue.textContent = newVolume;
+        updateSequencerVolumeMeter(newVolume);
+        
+        // Enviar al ESP32
+        sendWebSocket({
+            cmd: 'setSequencerVolume',
+            value: newVolume
+        });
+        
+        console.log(`Sequencer Volume: ${newVolume}%`);
     }
 }
 

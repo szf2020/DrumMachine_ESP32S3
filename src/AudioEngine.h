@@ -61,6 +61,7 @@ struct Voice {
   uint32_t length;        // Sample length in samples
   bool active;            // Is voice playing?
   uint8_t velocity;       // MIDI velocity (0-127)
+  uint8_t volume;         // Volume scale (0-100)
   float pitchShift;       // Pitch shift multiplier
   bool loop;              // Loop sample?
   uint32_t loopStart;     // Loop start point
@@ -80,6 +81,8 @@ public:
   
   // Playback control
   void triggerSample(int padIndex, uint8_t velocity);
+  void triggerSampleSequencer(int padIndex, uint8_t velocity);
+  void triggerSampleLive(int padIndex, uint8_t velocity);
   void stopSample(int padIndex);
   void stopAll();
   
@@ -98,6 +101,10 @@ public:
   // Volume Control
   void setMasterVolume(uint8_t volume); // 0-100
   uint8_t getMasterVolume();
+  void setSequencerVolume(uint8_t volume); // 0-100
+  uint8_t getSequencerVolume();
+  void setLiveVolume(uint8_t volume); // 0-100
+  uint8_t getLiveVolume();
   
   // Processing
   void process();
@@ -123,6 +130,8 @@ private:
   
   FXParams fx;
   uint8_t masterVolume; // 0-100
+  uint8_t sequencerVolume; // 0-100
+  uint8_t liveVolume; // 0-100
   
   // Visualization buffers
   int16_t captureBuffer[256];

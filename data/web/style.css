@@ -114,6 +114,18 @@ body {
     color: rgba(255, 255, 255, 0.65);
 }
 
+.meter-hint {
+    font-size: 0.65em;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5);
+    font-family: var(--font-mono);
+    margin-top: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
 .meter-value {
     font-family: var(--font-mono);
     font-size: 1.4em;
@@ -1143,6 +1155,36 @@ body:not(.mono-mode) .pad.tremolo-active {
     background: rgba(0,0,0,0.3);
     padding: 5px;
     text-align: center;
+    position: relative;
+}
+
+.loop-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 6px;
+    font-size: 9px;
+    letter-spacing: 1px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: rgba(255, 255, 255, 0.6);
+    background: rgba(0, 0, 0, 0.4);
+    text-transform: uppercase;
+    opacity: 0;
+    transition: opacity 0.2s, box-shadow 0.2s, color 0.2s;
+}
+
+.track-label.looping .loop-indicator {
+    opacity: 1;
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.6);
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.35);
+}
+
+.track-label.loop-paused .loop-indicator {
+    opacity: 0.6;
+    color: #bbb;
+    animation: loopPausedBlink 1.2s infinite;
 }
 
 .mute-btn {
@@ -1187,6 +1229,16 @@ body:not(.mono-mode) .pad.tremolo-active {
     border-radius: 3px;
     cursor: pointer;
     transition: all 0.1s;
+}
+
+.seq-step.looping {
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.15), inset 0 0 6px rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.35);
+}
+
+.seq-step.loop-paused {
+    opacity: 0.5;
+    animation: loopPausedBlink 1.2s infinite;
 }
 
 /* Colores por instrumento - Efecto LED */

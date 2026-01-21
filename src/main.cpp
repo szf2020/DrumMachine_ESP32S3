@@ -103,14 +103,14 @@ void systemTask(void *pvParameters) {
 // Callback que el Sequencer llama cada vez que hay un "trigger" en un step
 // NO enciende el LED (solo secuenciador)
 void onStepTrigger(int track, uint8_t velocity) {
-    audioEngine.triggerSample(track, velocity);
+    audioEngine.triggerSampleSequencer(track, velocity);
 }
 
 // Función para triggers manuales desde live pads (web interface)
 // Esta SÍ enciende el LED RGB
 void triggerPadWithLED(int track, uint8_t velocity) {
     Serial.printf("[PAD TRIGGER] Track: %d, Velocity: %d\n", track, velocity);
-    audioEngine.triggerSample(track, velocity);
+    audioEngine.triggerSampleLive(track, velocity);
     
     // Iluminar LED RGB con color del instrumento
     if (track >= 0 && track < 16) {

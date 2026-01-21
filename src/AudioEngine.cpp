@@ -31,7 +31,9 @@ AudioEngine::AudioEngine() : i2sPort(I2S_NUM_0), processCount(0), lastCpuCheck(0
   calculateBiquadCoeffs();
   
   // Initialize volume
-  masterVolume = 80; // 80% default
+  masterVolume = 100; // Master stays at 100% by default
+  sequencerVolume = 80; // 80% default
+  liveVolume = 80; // 80% default
   
   // Initialize visualization
   captureIndex = 0;
@@ -99,6 +101,36 @@ bool AudioEngine::setSampleBuffer(int padIndex, int16_t* buffer, uint32_t length
 }
 
 void AudioEngine::triggerSample(int padIndex, uint8_t velocity) {
+  triggerSampleLive(padIndex, velocity);
+}
+
+void AudioEngine::triggerSampleSequencer(int padIndex, uint8_t velocity) {
+  if (padIndex < 0 || padIndex >= 16) {
+    Serial.printf("[AudioEngine] ERROR: Invalid pad index %d\n", padIndex);
+    return;
+  }
+  if (sampleBuffers[padIndex] == nullptr) {
+    Serial.printf("[AudioEngine] ERROR: No sample buffer for pad %d\n", padIndex);
+    return;
+  }
+  int voiceIndex = findFreeVoice();
+  if (voiceIndex < 0) {
+    voiceIndex = 0;
+    Serial.println("[AudioEngine] No free voice, stealing voice 0");
+  }
+  voices[voiceIndex].buffer = sampleBuffers[padIndex];
+  voices[voiceIndex].position = 0;
+  voices[voiceIndex].length = sampleLengths[padIndex];
+  voices[voiceIndex].active = true;
+  voices[voiceIndex].velocity = velocity;
+  voices[voiceIndex].volume = sequencerVolume;
+  voices[voiceIndex].pitchShift = 1.0f;
+  voices[voiceIndex].loop = false;
+  Serial.printf("[AudioEngine] *** SEQ PAD %d -> Voice %d, Length: %d samples, Velocity: %d ***\n",
+                padIndex, voiceIndex, sampleLengths[padIndex], velocity);
+}
+
+void AudioEngine::triggerSampleLive(int padIndex, uint8_t velocity) {
   if (padIndex < 0 || padIndex >= 16) {
     Serial.printf("[AudioEngine] ERROR: Invalid pad index %d\n", padIndex);
     return;
@@ -122,10 +154,11 @@ void AudioEngine::triggerSample(int padIndex, uint8_t velocity) {
   voices[voiceIndex].length = sampleLengths[padIndex];
   voices[voiceIndex].active = true;
   voices[voiceIndex].velocity = velocity;
+  voices[voiceIndex].volume = liveVolume;
   voices[voiceIndex].pitchShift = 1.0f;
   voices[voiceIndex].loop = false;
   
-  Serial.printf("[AudioEngine] *** TRIGGER PAD %d -> Voice %d, Length: %d samples, Velocity: %d ***\n",
+  Serial.printf("[AudioEngine] *** LIVE PAD %d -> Voice %d, Length: %d samples, Velocity: %d ***\n",
                 padIndex, voiceIndex, sampleLengths[padIndex], velocity);
 }
 
@@ -218,8 +251,9 @@ void AudioEngine::fillBuffer(int16_t* buffer, size_t samples) {
       // Get sample
       int16_t sample = voice.buffer[voice.position];
       
-      // Apply velocity
+      // Apply velocity and per-source volume
       int32_t scaled = ((int32_t)sample * voice.velocity) / 127;
+      scaled = (scaled * voice.volume) / 100;
       
       // Mix to accumulator
       mixAcc[i * 2] += scaled;      // Left
@@ -263,6 +297,7 @@ void AudioEngine::resetVoice(int voiceIndex) {
   voices[voiceIndex].length = 0;
   voices[voiceIndex].active = false;
   voices[voiceIndex].velocity = 127;
+  voices[voiceIndex].volume = 100;
   voices[voiceIndex].pitchShift = 1.0f;
   voices[voiceIndex].loop = false;
   voices[voiceIndex].loopStart = 0;
@@ -307,6 +342,24 @@ void AudioEngine::setMasterVolume(uint8_t volume) {
 
 uint8_t AudioEngine::getMasterVolume() {
   return masterVolume;
+}
+
+void AudioEngine::setSequencerVolume(uint8_t volume) {
+  sequencerVolume = constrain(volume, 0, 100);
+  Serial.printf("[AudioEngine] Sequencer volume: %d%%\n", sequencerVolume);
+}
+
+uint8_t AudioEngine::getSequencerVolume() {
+  return sequencerVolume;
+}
+
+void AudioEngine::setLiveVolume(uint8_t volume) {
+  liveVolume = constrain(volume, 0, 100);
+  Serial.printf("[AudioEngine] Live volume: %d%%\n", liveVolume);
+}
+
+uint8_t AudioEngine::getLiveVolume() {
+  return liveVolume;
 }
 
 // Biquad filter coefficient calculation (optimized)

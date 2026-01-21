@@ -20,16 +20,26 @@
             <div class="header-meters">
                 <div class="meter" id="meter-bpm">
                     <span class="meter-label">BPM</span>
+                    <span class="meter-hint">[ / ]</span>
                     <div class="meter-value" id="meterBpmValue">110</div>
                     <div class="meter-bar">
                         <span id="meterBpmBar"></span>
                     </div>
                 </div>
-                <div class="meter" id="meter-volume">
-                    <span class="meter-label">VOLUMEN</span>
-                    <div class="meter-value" id="meterVolumeValue">80%</div>
+                <div class="meter" id="meter-seq-volume">
+                    <span class="meter-label">VOL SEQ</span>
+                    <span class="meter-hint">A / S</span>
+                    <div class="meter-value" id="meterSequencerVolumeValue">80%</div>
                     <div class="meter-bar">
-                        <span id="meterVolumeBar"></span>
+                        <span id="meterSequencerVolumeBar"></span>
+                    </div>
+                </div>
+                <div class="meter" id="meter-live-volume">
+                    <span class="meter-label">VOL LIVE</span>
+                    <span class="meter-hint">- / +</span>
+                    <div class="meter-value" id="meterLiveVolumeValue">80%</div>
+                    <div class="meter-bar">
+                        <span id="meterLiveVolumeBar"></span>
                     </div>
                 </div>
                 <div class="meter meter-filter" id="meter-filter">
@@ -114,8 +124,13 @@
             </div>
             
             <div class="control-group">
-                <label for="volumeSlider">VOLUME: <span id="volumeValue">80</span>%</label>
-                <input type="range" id="volumeSlider" min="0" max="100" value="80" class="slider">
+                <label for="sequencerVolumeSlider">VOLUMEN SEQUENCER: <span id="sequencerVolumeValue">80</span>%</label>
+                <input type="range" id="sequencerVolumeSlider" min="0" max="100" value="80" class="slider">
+            </div>
+
+            <div class="control-group">
+                <label for="liveVolumeSlider">VOLUMEN LIVE PADS: <span id="liveVolumeValue">80</span>%</label>
+                <input type="range" id="liveVolumeSlider" min="0" max="100" value="80" class="slider">
             </div>
             
             <div class="control-group">
@@ -194,7 +209,11 @@
                 </div>
                 <div class="legend-item">
                     <span class="legend-key">- / +</span>
-                    <span class="legend-desc">Volume +5 / -5</span>
+                    <span class="legend-desc">Live Volume +5 / -5</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-key">A / S</span>
+                    <span class="legend-desc">Sequencer Volume +5 / -5</span>
                 </div>
             </div>
         </section>

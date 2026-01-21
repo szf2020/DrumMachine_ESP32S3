@@ -41,9 +41,18 @@ static void populateStateDocument(StaticJsonDocument<4096>& doc) {
   doc["tempo"] = sequencer.getTempo();
   doc["pattern"] = sequencer.getCurrentPattern();
   doc["step"] = sequencer.getCurrentStep();
+  doc["sequencerVolume"] = audioEngine.getSequencerVolume();
+  doc["liveVolume"] = audioEngine.getLiveVolume();
   doc["samplesLoaded"] = sampleManager.getLoadedSamplesCount();
   doc["memoryUsed"] = sampleManager.getTotalMemoryUsed();
   doc["psramFree"] = sampleManager.getFreePSRAM();
+
+    JsonArray loopActive = doc.createNestedArray("loopActive");
+    JsonArray loopPaused = doc.createNestedArray("loopPaused");
+    for (int track = 0; track < MAX_TRACKS; track++) {
+      loopActive.add(sequencer.isLooping(track));
+      loopPaused.add(sequencer.isLoopPaused(track));
+    }
 
   JsonArray sampleArray = doc.createNestedArray("samples");
   for (int pad = 0; pad < MAX_SAMPLES; pad++) {
@@ -445,6 +454,16 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
             int rate = doc["value"];
             audioEngine.setSampleRateReduction(rate);
             Serial.printf("[FX] Sample rate: %d Hz\n", rate);
+          }
+          else if (cmd == "setSequencerVolume") {
+            int volume = doc["value"];
+            audioEngine.setSequencerVolume(volume);
+            Serial.printf("[Volume] Sequencer volume: %d%%\n", volume);
+          }
+          else if (cmd == "setLiveVolume") {
+            int volume = doc["value"];
+            audioEngine.setLiveVolume(volume);
+            Serial.printf("[Volume] Live volume: %d%%\n", volume);
           }
           else if (cmd == "setVolume") {
             int volume = doc["value"];
