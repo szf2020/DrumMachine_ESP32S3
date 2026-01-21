@@ -15,10 +15,30 @@
                 <span id="statusDot" class="status-dot"></span>
                 <span id="statusText">Conectando...</span>
             </div>
+            <button id="menuToggle" class="menu-toggle" aria-label="Toggle menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
         </header>
 
+        <!-- Section Manager Panel -->
+        <div id="sectionManager" class="section-manager">
+            <div class="section-manager-header">
+                <h3>📋 SECCIONES</h3>
+                <button id="closeManager" class="close-manager">✕</button>
+            </div>
+            <div class="section-manager-content">
+                <p class="manager-hint">👁️ Mostrar/Ocultar | ↕️ Reordenar</p>
+                <div id="sectionList" class="section-list">
+                    <!-- Se genera dinámicamente -->
+                </div>
+            </div>
+        </div>
+        <div id="managerOverlay" class="manager-overlay"></div>
+
         <!-- Live Pads Section -->
-        <section class="pads-section">
+        <section id="section-pads" class="pads-section" data-section="pads" data-title="Live Pads">
             <h2>LIVE PADS</h2>
             <div class="pads-grid" id="padsGrid">
                 <!-- Los pads se generarán dinámicamente -->
@@ -26,21 +46,17 @@
         </section>
 
         <!-- Audio Visualizer Section -->
-        <section class="visualizer-section">
+        <section id="section-visualizer" class="visualizer-section" data-section="visualizer" data-title="Audio Visualizer">
             <div class="visualizer-grid">
-                <div class="visualizer-panel">
+                <div class="visualizer-panel visualizer-full">
                     <h3>SPECTRUM ANALYZER</h3>
                     <canvas id="spectrumCanvas" width="600" height="200"></canvas>
-                </div>
-                <div class="visualizer-panel">
-                    <h3>WAVEFORM</h3>
-                    <canvas id="waveformCanvas" width="600" height="200"></canvas>
                 </div>
             </div>
         </section>
 
         <!-- Sequencer Section -->
-        <section class="sequencer-section">
+        <section id="section-sequencer" class="sequencer-section" data-section="sequencer" data-title="Sequencer">
             <div class="sequencer-header">
                 <h2>SEQUENCER</h2>
                 <div class="sequencer-controls">
@@ -64,7 +80,7 @@
         </section>
 
         <!-- Controls Section -->
-        <section class="controls-section">
+        <section id="section-controls" class="controls-section" data-section="controls" data-title="Controls">
             <div class="control-group">
                 <label for="tempoSlider">TEMPO: <span id="tempoValue">110</span> BPM</label>
                 <input type="range" id="tempoSlider" min="60" max="200" value="110" class="slider">
@@ -101,7 +117,7 @@
         </section>
 
         <!-- FX Section -->
-        <section class="fx-section">
+        <section id="section-fx" class="fx-section" data-section="fx" data-title="Sound FX">
             <h2>SOUND FX</h2>
             <div class="fx-grid">
                 <div class="fx-control">
@@ -143,31 +159,85 @@
         </section>
 
         <!-- Keyboard Shortcuts Legend -->
-        <section class="keyboard-legend">
+        <section id="section-keyboard" class="keyboard-legend" data-section="keyboard" data-title="Keyboard Shortcuts">
             <div class="legend-title">⌨️ KEYBOARD SHORTCUTS</div>
             <div class="legend-grid">
                 <div class="legend-item">
-                    <span class="legend-key">1-8</span>
-                    <span class="legend-desc">Trigger Pads (Tremolo)</span>
+                    <span class="legend-key">1-9, 0, Q-U</span>
+                    <span class="legend-desc">Trigger Pads 1-16 (Tremolo)</span>
                 </div>
                 <div class="legend-item">
                     <span class="legend-key">SPACE</span>
                     <span class="legend-desc">Play / Pause</span>
                 </div>
                 <div class="legend-item">
-                    <span class="legend-key">Q / A</span>
+                    <span class="legend-key">[ / ]</span>
                     <span class="legend-desc">BPM +5 / -5</span>
                 </div>
                 <div class="legend-item">
-                    <span class="legend-key">W / S</span>
+                    <span class="legend-key">- / +</span>
                     <span class="legend-desc">Volume +5 / -5</span>
                 </div>
             </div>
         </section>
 
+        <!-- Device Info Section -->
+        <section id="section-device" class="device-info" data-section="device" data-title="Device Info">
+            <div class="info-title">🎛️ DEVICE INFO</div>
+            <div class="info-grid">
+                <div class="info-item">
+                    <span class="info-label">Sampler:</span>
+                    <span class="info-value">ESP32-S3 @ 240MHz</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Audio Format:</span>
+                    <span class="info-value">44.1kHz Mono 16-bit</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Polyphony:</span>
+                    <span class="info-value">16 voices</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Tracks:</span>
+                    <span class="info-value" id="tracksInfo">16 tracks x 16 steps</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Samples:</span>
+                    <span class="info-value" id="samplesCount">Loading...</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Memory Used:</span>
+                    <span class="info-value" id="memoryUsed">Calculating...</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Instruments Info Section -->
+        <section id="section-instruments" class="device-info" data-section="instruments" data-title="Instrument Map">
+            <div class="info-title">🥁 INSTRUMENT MAP (16 TRACKS)</div>
+            <div class="instruments-list">
+                <div class="instrument-row"><span class="inst-code">BD</span> Bass Drum (Bombo)</div>
+                <div class="instrument-row"><span class="inst-code">SD</span> Snare Drum (Caja)</div>
+                <div class="instrument-row"><span class="inst-code">CH</span> Closed Hi-Hat</div>
+                <div class="instrument-row"><span class="inst-code">OH</span> Open Hi-Hat</div>
+                <div class="instrument-row"><span class="inst-code">CP</span> Hand Clap (Palmas)</div>
+                <div class="instrument-row"><span class="inst-code">CB</span> Cowbell (Cencerro)</div>
+                <div class="instrument-row"><span class="inst-code">RS</span> Rim Shot (Aro)</div>
+                <div class="instrument-row"><span class="inst-code">CL</span> Claves</div>
+                <div class="instrument-row"><span class="inst-code">MA</span> Maracas</div>
+                <div class="instrument-row"><span class="inst-code">CY</span> Cymbal (Platillo)</div>
+                <div class="instrument-row"><span class="inst-code">HT</span> Hi Tom (Agudo)</div>
+                <div class="instrument-row"><span class="inst-code">LT</span> Low Tom (Grave)</div>
+                <div class="instrument-row"><span class="inst-code">MC</span> Mid Conga</div>
+                <div class="instrument-row"><span class="inst-code">MT</span> Mid Tom (Medio)</div>
+                <div class="instrument-row"><span class="inst-code">HC</span> Hi Conga</div>
+                <div class="instrument-row"><span class="inst-code">LC</span> Low Conga</div>
+            </div>
+        </section>
+
         <!-- Footer -->
         <footer class="footer">
-            <p>RED808 | ESP32-S3</p>
+            <p>RED808 | 16-Track Drum Machine | ESP32-S3 Dual Core</p>
         </footer>
     </div>
 

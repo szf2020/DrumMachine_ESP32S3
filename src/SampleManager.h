@@ -48,9 +48,11 @@ public:
   bool isSampleLoaded(int padIndex);
   uint32_t getSampleLength(int padIndex);
   const char* getSampleName(int padIndex);
+  int getLoadedSamplesCount();
   
   // Memory info
   size_t getTotalPSRAMUsed();
+  size_t getTotalMemoryUsed(); // Alias para compatibilidad
   size_t getFreePSRAM();
   
 private:

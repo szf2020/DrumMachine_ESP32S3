@@ -454,29 +454,37 @@ float AudioEngine::getCpuLoad() {
 // ============= AUDIO VISUALIZATION =============
 
 void AudioEngine::captureAudioData(uint8_t* spectrum, uint8_t* waveform) {
+  // Copiar del mixBuffer si está disponible, si no usar captureBuffer
+  int16_t* sourceBuffer = captureBuffer;
+  int sourceSize = 256;
+  
   // Simple FFT-like spectrum approximation using band filtering
   // Split captured buffer into 64 frequency bands
   
   for (int band = 0; band < 64; band++) {
     float sum = 0.0f;
-    int startIdx = (band * 256) / 64;
-    int endIdx = ((band + 1) * 256) / 64;
+    int startIdx = (band * sourceSize) / 64;
+    int endIdx = ((band + 1) * sourceSize) / 64;
     
     // Calculate RMS for this band
     for (int i = startIdx; i < endIdx; i++) {
-      float sample = captureBuffer[i] / 32768.0f;
+      float sample = sourceBuffer[i] / 32768.0f;
       sum += sample * sample;
     }
     
     float rms = sqrtf(sum / (endIdx - startIdx));
+    // Amplify significantly for better visibility
+    rms = fminf(rms * 10.0f, 1.0f);
     spectrum[band] = (uint8_t)(rms * 255.0f);
   }
   
   // Waveform: decimate captured buffer to 128 samples
   for (int i = 0; i < 128; i++) {
-    int idx = (i * 256) / 128;
-    float normalized = (captureBuffer[idx] / 32768.0f) * 0.5f + 0.5f; // -1 to 1 -> 0 to 1
-    waveform[i] = (uint8_t)(normalized * 255.0f);
+    int idx = (i * sourceSize) / 128;
+    // Keep the waveform centered at 128 (middle of 0-255 range)
+    float sample = sourceBuffer[idx] / 32768.0f; // -1.0 to +1.0
+    float normalized = (sample * 0.5f) + 0.5f;    // 0.0 to 1.0
+    waveform[i] = (uint8_t)(constrain(normalized * 255.0f, 0.0f, 255.0f));
   }
 }
 

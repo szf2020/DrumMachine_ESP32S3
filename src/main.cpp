@@ -24,16 +24,24 @@ Sequencer sequencer;
 WebInterface webInterface;
 Adafruit_NeoPixel rgbLed(RGB_LED_NUM, RGB_LED_PIN, NEO_GRB + NEO_KHZ800);
 
-// Colores por instrumento - Colores RGB puros e intensos para el LED
-const uint32_t instrumentColors[8] = {
+// Colores por instrumento - Colores RGB puros e intensos para el LED (16 tracks)
+const uint32_t instrumentColors[16] = {
     0xFF0000,  // 0: BD - Rojo puro
     0x0000FF,  // 1: SD - Azul puro
     0xFF8000,  // 2: CH - Naranja intenso
     0x00FF00,  // 3: OH - Verde puro
     0xFF00FF,  // 4: CP - Magenta puro
     0xFF4500,  // 5: CB - Naranja rojizo
-    0x00FFFF,  // 6: TOM - Cyan puro
-    0xFFFFFF   // 7: PERC - Blanco
+    0x00FFFF,  // 6: RS - Cyan puro
+    0xFFFFFF,  // 7: CL - Blanco
+    0xFFFF00,  // 8: MA - Amarillo puro
+    0xFF0080,  // 9: CY - Rosa fucsia
+    0x8000FF,  // 10: HT - Violeta
+    0x00FF80,  // 11: LT - Verde lima
+    0xFF8080,  // 12: MC - Coral
+    0x80FFFF,  // 13: MT - Celeste
+    0xFF80FF,  // 14: HC - Lavanda
+    0x80FF80   // 15: LC - Verde menta
 };
 
 // Variables para control del LED RGB fade
@@ -93,7 +101,7 @@ void triggerPadWithLED(int track, uint8_t velocity) {
     audioEngine.triggerSample(track, velocity);
     
     // Iluminar LED RGB con color del instrumento
-    if (track >= 0 && track < 8) {
+    if (track >= 0 && track < 16) {
         uint32_t color = instrumentColors[track];
         ledBrightness = 255;
         ledFading = true;
@@ -205,84 +213,215 @@ void setup() {
     
     sequencer.setTempo(110); // BPM inicial
     
-    // === PATRÓN 0: HIP HOP BOOM BAP ===
+    // === PATRÓN 0: HIP HOP BOOM BAP (16 tracks) ===
     sequencer.selectPattern(0);
-    sequencer.setStep(0, 0, true);   // Kick en 1
-    sequencer.setStep(0, 3, true);   // Kick ghost
-    sequencer.setStep(0, 10, true);  // Kick sincopado
-    sequencer.setStep(1, 4, true);   // Snare en 2
-    sequencer.setStep(1, 12, true);  // Snare en 4
-    for(int i=0; i<16; i+=2) sequencer.setStep(2, i, true); // CH patrón cerrado
-    sequencer.setStep(3, 6, true);   // OH para swing
-    sequencer.setStep(3, 14, true);  // OH al final
-    sequencer.setStep(4, 4, true);   // Clap doblando snare
+    sequencer.setStep(0, 0, true);   // BD: Kick en 1
+    sequencer.setStep(0, 3, true);   // BD: Kick ghost
+    sequencer.setStep(0, 10, true);  // BD: Kick sincopado
+    sequencer.setStep(1, 4, true);   // SD: Snare en 2
+    sequencer.setStep(1, 12, true);  // SD: Snare en 4
+    for(int i=0; i<16; i+=2) sequencer.setStep(2, i, true); // CH: patrón cerrado
+    sequencer.setStep(3, 6, true);   // OH: para swing
+    sequencer.setStep(3, 14, true);  // OH: al final
+    sequencer.setStep(4, 4, true);   // CP: Clap doblando snare
     sequencer.setStep(4, 12, true);
-    sequencer.setStep(5, 11, true);  // Cowbell accent
-    sequencer.setStep(6, 7, true);   // Tom bajo fill
-    sequencer.setStep(7, 15, true);  // Tom medio fin de frase
+    sequencer.setStep(5, 11, true);  // CB: Cowbell accent
+    sequencer.setStep(6, 7, true);   // RS: Rimshot fill
+    sequencer.setStep(7, 5, true);   // CL: Claves groove
+    sequencer.setStep(7, 13, true);  // CL: Claves extra
+    sequencer.setStep(8, 2, true);   // MA: Maracas shake
+    sequencer.setStep(8, 6, true);
+    sequencer.setStep(8, 10, true);
+    sequencer.setStep(8, 14, true);  // MA: Maracas constante
+    sequencer.setStep(9, 15, true);  // CY: Cymbal crash final
+    sequencer.setStep(10, 9, true);  // HT: Hi tom fill
+    sequencer.setStep(10, 13, true);
+    sequencer.setStep(11, 7, true);  // LT: Low tom
+    sequencer.setStep(11, 11, true);
+    sequencer.setStep(12, 1, true);  // MC: Mid conga texture
+    sequencer.setStep(12, 5, true);
+    sequencer.setStep(12, 9, true);
+    sequencer.setStep(12, 13, true);
+    sequencer.setStep(13, 3, true);  // MT: Mid tom accent
+    sequencer.setStep(13, 11, true);
+    sequencer.setStep(14, 6, true);  // HC: Hi conga
+    sequencer.setStep(14, 10, true);
+    sequencer.setStep(15, 3, true);  // LC: Low conga groove
+    sequencer.setStep(15, 7, true);
+    sequencer.setStep(15, 15, true);
     
-    // === PATRÓN 1: TECHNO DETROIT ===
+    // === PATRÓN 1: TECHNO DETROIT (16 tracks) ===
     sequencer.selectPattern(1);
-    for(int i=0; i<16; i+=4) sequencer.setStep(0, i, true); // Four on the floor
-    sequencer.setStep(1, 4, true);   // Snare en 2
-    sequencer.setStep(1, 12, true);  // Snare en 4
-    for(int i=0; i<16; i++) sequencer.setStep(2, i, true);  // 16th hi-hats
-    sequencer.setStep(3, 8, true);   // OH en medio
-    sequencer.setStep(4, 8, true);   // Clap capa con snare
-    sequencer.setStep(5, 2, true);   // Cowbell syncopado
+    for(int i=0; i<16; i+=4) sequencer.setStep(0, i, true); // BD: Four on the floor
+    sequencer.setStep(1, 4, true);   // SD: Snare en 2
+    sequencer.setStep(1, 12, true);  // SD: Snare en 4
+    for(int i=0; i<16; i++) sequencer.setStep(2, i, true);  // CH: 16th hi-hats
+    sequencer.setStep(3, 8, true);   // OH: en medio
+    sequencer.setStep(4, 4, true);   // CP: Clap capa snare
+    sequencer.setStep(4, 8, true);
+    sequencer.setStep(4, 12, true);
+    sequencer.setStep(5, 2, true);   // CB: Cowbell syncopado
     sequencer.setStep(5, 6, true);
     sequencer.setStep(5, 10, true);
     sequencer.setStep(5, 14, true);
-    sequencer.setStep(7, 11, true);  // RS accent
+    sequencer.setStep(6, 7, true);   // RS: Rim accent
+    sequencer.setStep(6, 11, true);
+    sequencer.setStep(6, 15, true);
+    sequencer.setStep(7, 3, true);   // CL: Claves offbeat
+    sequencer.setStep(7, 7, true);
+    sequencer.setStep(7, 11, true);
+    sequencer.setStep(7, 15, true);
+    for(int i=1; i<16; i+=2) sequencer.setStep(8, i, true); // MA: Maracas 8th
+    sequencer.setStep(9, 0, true);   // CY: Cymbal intro
+    sequencer.setStep(9, 8, true);   // CY: medio
+    sequencer.setStep(10, 5, true);  // HT: Hi tom punch
+    sequencer.setStep(10, 9, true);
+    sequencer.setStep(10, 13, true);
+    sequencer.setStep(11, 3, true);  // LT: Low tom drop
+    sequencer.setStep(11, 7, true);
+    sequencer.setStep(11, 15, true);
+    for(int i=0; i<16; i+=4) sequencer.setStep(12, i, true); // MC: Mid conga steady
+    sequencer.setStep(13, 2, true);  // MT: Mid tom
+    sequencer.setStep(13, 6, true);
+    sequencer.setStep(13, 10, true);
+    sequencer.setStep(13, 14, true);
+    for(int i=1; i<16; i+=4) sequencer.setStep(14, i, true); // HC: Hi conga texture
+    sequencer.setStep(15, 7, true);  // LC: Low conga
+    sequencer.setStep(15, 11, true);
+    sequencer.setStep(15, 15, true);
     
-    // === PATRÓN 2: DRUM & BASS AMEN ===
+    // === PATRÓN 2: DRUM & BASS AMEN (16 tracks) ===
     sequencer.selectPattern(2);
-    sequencer.setStep(0, 0, true);   // Kick doble
+    sequencer.setStep(0, 0, true);   // BD: Kick doble
     sequencer.setStep(0, 2, true);
-    sequencer.setStep(0, 10, true);  // Kick sincopado
-    sequencer.setStep(1, 4, true);   // Snare break
-    sequencer.setStep(1, 7, true);   // Snare ghost
+    sequencer.setStep(0, 10, true);  // BD: Kick sincopado
+    sequencer.setStep(1, 4, true);   // SD: Snare break
+    sequencer.setStep(1, 7, true);   // SD: Snare ghost
     sequencer.setStep(1, 10, true);
     sequencer.setStep(1, 12, true);
-    for(int i=0; i<16; i++) sequencer.setStep(2, i, true);  // CH constante
-    sequencer.setStep(3, 6, true);   // OH para textura
-    sequencer.setStep(3, 14, true);
-    sequencer.setStep(6, 3, true);
-    sequencer.setStep(6, 8, true);
-    sequencer.setStep(7, 11, true);
-    sequencer.setStep(7, 15, true);
-    
-    // === PATRÓN 3: BREAKBEAT SHUFFLE ===
-    sequencer.selectPattern(3);
-    sequencer.setStep(0, 0, true);   // Kick principal
-    sequencer.setStep(0, 5, true);   // Kick offbeat
-    sequencer.setStep(0, 10, true);
-    sequencer.setStep(1, 4, true);   // Snare backbeat
-    sequencer.setStep(1, 12, true);
-    sequencer.setStep(1, 13, true);  // Snare flam
-    for(int i=0; i<16; i+=3) sequencer.setStep(2, i, true); // CH shuffle
-    sequencer.setStep(3, 6, true);   // OH acentos
-    sequencer.setStep(3, 14, true);
-    sequencer.setStep(4, 9, true);   // Clap offbeat
-    sequencer.setStep(5, 7, true);   // Cowbell groove
-    sequencer.setStep(6, 3, true);
-    sequencer.setStep(7, 11, true);
-    sequencer.setStep(7, 15, true);
-    
-    // === PATRÓN 4: CHICAGO HOUSE ===
-    sequencer.selectPattern(4);
-    for(int i=0; i<16; i+=4) sequencer.setStep(0, i, true); // Four on floor
-    sequencer.setStep(1, 4, true);   // Snare 2 y 4
-    sequencer.setStep(1, 12, true);
-    for(int i=2; i<16; i+=4) sequencer.setStep(2, i, true); // CH offbeat
-    sequencer.setStep(3, 6, true);   // OH sincopado
+    for(int i=0; i<16; i++) sequencer.setStep(2, i, true);  // CH: constante
+    sequencer.setStep(3, 6, true);   // OH: textura
     sequencer.setStep(3, 10, true);
     sequencer.setStep(3, 14, true);
-    sequencer.setStep(4, 4, true);   // Clap dobla snare
+    sequencer.setStep(4, 4, true);   // CP: Clap layers
+    sequencer.setStep(4, 8, true);
     sequencer.setStep(4, 12, true);
-    sequencer.setStep(5, 3, true);
+    sequencer.setStep(5, 5, true);   // CB: Cowbell DnB
+    sequencer.setStep(5, 9, true);
+    sequencer.setStep(5, 13, true);
+    sequencer.setStep(6, 3, true);   // RS: Rim pattern
+    sequencer.setStep(6, 6, true);
+    sequencer.setStep(6, 8, true);
+    sequencer.setStep(6, 11, true);
+    for(int i=0; i<16; i+=3) sequencer.setStep(7, i, true); // CL: Claves fast triplets
+    for(int i=0; i<16; i+=2) sequencer.setStep(8, i, true); // MA: Shake constant
+    sequencer.setStep(9, 0, true);   // CY: Cymbal intro
+    sequencer.setStep(9, 8, true);   // CY: medio
+    sequencer.setStep(9, 15, true);  // CY: final
+    for(int i=1; i<16; i+=3) sequencer.setStep(10, i, true); // HT: Hi tom roll triplet
+    sequencer.setStep(11, 1, true);  // LT: Low tom punch
+    sequencer.setStep(11, 5, true);
+    sequencer.setStep(11, 9, true);
+    sequencer.setStep(11, 13, true);
+    for(int i=2; i<16; i+=4) sequencer.setStep(12, i, true); // MC: Conga pattern 16th
+    sequencer.setStep(13, 3, true);  // MT: Mid tom breaks
+    sequencer.setStep(13, 7, true);
+    sequencer.setStep(13, 11, true);
+    sequencer.setStep(13, 14, true);
+    for(int i=1; i<16; i+=3) sequencer.setStep(14, i, true); // HC: Hi conga fast triplet
+    for(int i=0; i<16; i+=4) sequencer.setStep(15, i, true); // LC: Low conga groove steady
+    
+    // === PATRÓN 3: BREAKBEAT SHUFFLE (16 tracks) ===
+    sequencer.selectPattern(3);
+    sequencer.setStep(0, 0, true);   // BD: Kick principal
+    sequencer.setStep(0, 5, true);   // BD: Kick offbeat
+    sequencer.setStep(0, 10, true);
+    sequencer.setStep(1, 4, true);   // SD: Snare backbeat
+    sequencer.setStep(1, 12, true);
+    sequencer.setStep(1, 13, true);  // SD: Snare flam
+    for(int i=0; i<16; i+=3) sequencer.setStep(2, i, true); // CH: shuffle
+    sequencer.setStep(3, 6, true);   // OH: acentos
+    sequencer.setStep(3, 10, true);
+    sequencer.setStep(3, 14, true);
+    sequencer.setStep(4, 4, true);   // CP: Clap offbeat
+    sequencer.setStep(4, 9, true);
+    sequencer.setStep(4, 12, true);
+    sequencer.setStep(5, 3, true);   // CB: Cowbell groove
+    sequencer.setStep(5, 7, true);
     sequencer.setStep(5, 11, true);
-    sequencer.setStep(7, 15, true);
+    sequencer.setStep(5, 15, true);
+    sequencer.setStep(6, 1, true);   // RS: Rim shuffle
+    sequencer.setStep(6, 3, true);
+    sequencer.setStep(6, 9, true);
+    for(int i=0; i<16; i+=4) sequencer.setStep(7, i, true); // CL: Claves break steady
+    sequencer.setStep(8, 1, true);   // MA: Maracas swing
+    sequencer.setStep(8, 5, true);
+    sequencer.setStep(8, 9, true);
+    sequencer.setStep(8, 13, true);
+    sequencer.setStep(9, 0, true);   // CY: Cymbal crash
+    sequencer.setStep(9, 12, true);
+    sequencer.setStep(10, 2, true);  // HT: Hi tom fills
+    sequencer.setStep(10, 6, true);
+    sequencer.setStep(10, 10, true);
+    sequencer.setStep(10, 14, true);
+    sequencer.setStep(11, 4, true);  // LT: Low tom drop
+    sequencer.setStep(11, 8, true);
+    sequencer.setStep(11, 14, true);
+    for(int i=1; i<16; i+=3) sequencer.setStep(12, i, true); // MC: Mid conga layer triplet
+    sequencer.setStep(13, 2, true);  // MT: Mid tom accent
+    sequencer.setStep(13, 6, true);
+    sequencer.setStep(13, 11, true);
+    sequencer.setStep(14, 3, true);  // HC: Hi conga shuffle
+    sequencer.setStep(14, 5, true);
+    sequencer.setStep(14, 9, true);
+    sequencer.setStep(14, 15, true);
+    sequencer.setStep(15, 7, true);  // LC: Low conga punch
+    sequencer.setStep(15, 10, true);
+    sequencer.setStep(15, 13, true);
+    
+    // === PATRÓN 4: CHICAGO HOUSE (16 tracks) ===
+    sequencer.selectPattern(4);
+    for(int i=0; i<16; i+=4) sequencer.setStep(0, i, true); // BD: Four on floor
+    sequencer.setStep(1, 4, true);   // SD: Snare 2 y 4
+    sequencer.setStep(1, 12, true);
+    for(int i=2; i<16; i+=4) sequencer.setStep(2, i, true); // CH: offbeat
+    sequencer.setStep(3, 6, true);   // OH: sincopado
+    sequencer.setStep(3, 10, true);
+    sequencer.setStep(3, 14, true);
+    sequencer.setStep(4, 4, true);   // CP: Clap dobla snare
+    sequencer.setStep(4, 8, true);
+    sequencer.setStep(4, 12, true);
+    sequencer.setStep(5, 3, true);   // CB: Cowbell latino
+    sequencer.setStep(5, 7, true);
+    sequencer.setStep(5, 11, true);
+    sequencer.setStep(5, 15, true);
+    sequencer.setStep(6, 1, true);   // RS: Rim house
+    sequencer.setStep(6, 5, true);
+    sequencer.setStep(6, 9, true);
+    sequencer.setStep(6, 13, true);
+    for(int i=0; i<16; i+=4) sequencer.setStep(7, i, true); // CL: Claves steady
+    sequencer.setStep(8, 2, true);   // MA: Maracas house 16th
+    sequencer.setStep(8, 6, true);
+    sequencer.setStep(8, 10, true);
+    sequencer.setStep(8, 14, true);
+    sequencer.setStep(9, 0, true);   // CY: Cymbal intro
+    sequencer.setStep(9, 8, true);
+    sequencer.setStep(10, 5, true);  // HT: Hi tom accent
+    sequencer.setStep(10, 9, true);
+    sequencer.setStep(10, 13, true);
+    sequencer.setStep(11, 3, true);  // LT: Low tom punch
+    sequencer.setStep(11, 7, true);
+    sequencer.setStep(11, 11, true);
+    sequencer.setStep(11, 15, true);
+    for(int i=0; i<16; i+=2) sequencer.setStep(12, i, true); // MC: Mid conga latin 8th
+    sequencer.setStep(13, 6, true);  // MT: Mid tom
+    sequencer.setStep(13, 10, true);
+    sequencer.setStep(13, 15, true);
+    sequencer.setStep(14, 1, true);  // HC: Hi conga pattern
+    sequencer.setStep(14, 5, true);
+    sequencer.setStep(14, 9, true);
+    sequencer.setStep(14, 13, true);
+    for(int i=1; i<16; i+=4) sequencer.setStep(15, i, true); // LC: Low conga groove steady
     
     sequencer.selectPattern(0); // Empezar con Hip Hop
     sequencer.start();

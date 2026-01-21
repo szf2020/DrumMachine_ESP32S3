@@ -228,3 +228,17 @@ size_t SampleManager::getTotalPSRAMUsed() {
 size_t SampleManager::getFreePSRAM() {
   return ESP.getFreePsram();
 }
+
+int SampleManager::getLoadedSamplesCount() {
+  int count = 0;
+  for (int i = 0; i < MAX_SAMPLES; i++) {
+    if (sampleBuffers[i] != nullptr) {
+      count++;
+    }
+  }
+  return count;
+}
+
+size_t SampleManager::getTotalMemoryUsed() {
+  return getTotalPSRAMUsed();
+}

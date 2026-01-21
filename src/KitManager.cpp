@@ -38,87 +38,61 @@ bool KitManager::begin() {
 int KitManager::scanKits() {
   kitCount = 0;
   
-  // Kit 01: TR-808 Classic (50/50 balance)
-  Kit& kit1 = kits[kitCount];
-  strncpy(kit1.name, "TR-808 Classic", 31);
-  kit1.sampleCount = 0;
-
-  const char* files1[] = {
-    "/BD/BD5050.WAV",  // Bass Drum - TUNING:50, DECAY:50
-    "/SD/SD0000.WAV",  // Snare Drum - TONE:0, SNAPPY:0
-    "/CH/CH.WAV",      // Closed Hi-Hat
-    "/OH/OH00.WAV",    // Open Hi-Hat
-    "/CP/CP.WAV",      // Hand Clap
-    "/CB/CB.WAV",      // Cowbell
-    "/RS/RS.WAV",      // Rimshot
-    "/OH/OH00.WAV"     // Open Hat (alt)
+  // 16 carpetas de instrumentos
+  const char* folders[16] = {
+    "/BD", "/SD", "/CH", "/OH", "/CP", "/CB", "/RS", "/CL",
+    "/MA", "/CY", "/HT", "/LT", "/MC", "/MT", "/HC", "/LC"
   };
+  
+  // Kit Único: Todos los instrumentos disponibles
+  Kit& kit = kits[0];
+  strncpy(kit.name, "RED808 16-Track", 31);
+  kit.sampleCount = 0;
 
-  for (int i = 0; i < 8; i++) {
-    if (LittleFS.exists(files1[i])) {
-      kit1.samples[kit1.sampleCount].padIndex = i;
-      strncpy(kit1.samples[kit1.sampleCount].filename, files1[i], 63);
-      kit1.sampleCount++;
-      Serial.printf("  [Kit 1] Added: %s -> Pad %d\n", files1[i], i);
+  // Cargar primer sample de cada carpeta
+  for (int i = 0; i < 16 && kit.sampleCount < MAX_SAMPLES_PER_KIT; i++) {
+    File dir = LittleFS.open(folders[i]);
+    if (!dir || !dir.isDirectory()) {
+      Serial.printf("  ⚠️  Carpeta %s no encontrada\n", folders[i]);
+      continue;
     }
-  }
-  if (kit1.sampleCount > 0) kitCount++;
-
-  // Kit 02: TR-808 Heavy (75/10 agresivo)
-  if (kitCount < MAX_KITS) {
-    Kit& kit2 = kits[kitCount];
-    strncpy(kit2.name, "TR-808 Heavy", 31);
-    kit2.sampleCount = 0;
-
-    const char* files2[] = {
-      "/BD/BD7510.WAV",  // Bass Drum - TUNING:75, DECAY:10 (grave y corto)
-      "/SD/SD5000.WAV",  // Snare Drum - TONE:50, SNAPPY:0 (cuerpo)
-      "/CH/CH.WAV",      // Closed HH
-      "/OH/OH00.WAV",    // Open HH
-      "/CP/CP.WAV",      // Clap
-      "/CB/CB.WAV",      // Cowbell
-      "/RS/RS.WAV",      // Rimshot
-      "/CB/CB.WAV"       // Cowbell alt
-    };
-
-    for (int i = 0; i < 8; i++) {
-      if (LittleFS.exists(files2[i])) {
-        kit2.samples[kit2.sampleCount].padIndex = i;
-        strncpy(kit2.samples[kit2.sampleCount].filename, files2[i], 63);
-        kit2.sampleCount++;
+    
+    // Buscar primer archivo .wav o .WAV
+    File file = dir.openNextFile();
+    bool found = false;
+    while (file && !found) {
+      String filename = file.name();
+      filename.toUpperCase();
+      
+      if (!file.isDirectory() && filename.endsWith(".WAV")) {
+        // Construir path completo
+        char fullPath[128];
+        snprintf(fullPath, 127, "%s/%s", folders[i], file.name());
+        
+        // Agregar al kit
+        kit.samples[kit.sampleCount].padIndex = i;
+        strncpy(kit.samples[kit.sampleCount].filename, fullPath, 63);
+        kit.sampleCount++;
+        
+        Serial.printf("  ✓ Track %02d: %s\n", i, fullPath);
+        found = true;
       }
+      
+      file = dir.openNextFile();
     }
-    if (kit2.sampleCount > 0) kitCount++;
-  }
-
-  // Kit 03: TR-808 Soft (25/25 suave)
-  if (kitCount < MAX_KITS) {
-    Kit& kit3 = kits[kitCount];
-    strncpy(kit3.name, "TR-808 Soft", 31);
-    kit3.sampleCount = 0;
-
-    const char* files3[] = {
-      "/BD/BD2525.WAV",  // Bass Drum - TUNING:25, DECAY:25 (suave)
-      "/SD/SD0050.WAV",  // Snare Drum - TONE:0, SNAPPY:50 (bright)
-      "/CH/CH.WAV",      // Closed HH
-      "/CH/CH.WAV",      // Closed HH (doble)
-      "/OH/OH00.WAV",    // Open HH
-      "/RS/RS.WAV",      // Rimshot
-      "/CP/CP.WAV",      // Clap
-      "/CB/CB.WAV"       // Cowbell
-    };
-
-    for (int i = 0; i < 8; i++) {
-      if (LittleFS.exists(files3[i])) {
-        kit3.samples[kit3.sampleCount].padIndex = i;
-        strncpy(kit3.samples[kit3.sampleCount].filename, files3[i], 63);
-        kit3.sampleCount++;
-      }
+    
+    if (!found) {
+      Serial.printf("  ⚠️  Track %02d (%s): sin samples\n", i, folders[i]);
     }
-    if (kit3.sampleCount > 0) kitCount++;
   }
-
-  Serial.printf("✓ Kits encontrados: %d\n", kitCount);
+  
+  if (kit.sampleCount > 0) {
+    kitCount = 1;
+    Serial.printf("\n✓ Kit '%s' con %d tracks cargados\n", kit.name, kit.sampleCount);
+  } else {
+    Serial.println("❌ No se encontraron samples");
+  }
+  
   return kitCount;
 }
 

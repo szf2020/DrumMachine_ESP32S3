@@ -7,10 +7,12 @@
 #include "AudioEngine.h"
 #include "Sequencer.h"
 #include "KitManager.h"
+#include "SampleManager.h"
 
 extern AudioEngine audioEngine;
 extern Sequencer sequencer;
 extern KitManager kitManager;
+extern SampleManager sampleManager;
 extern void triggerPadWithLED(int track, uint8_t velocity);  // Función que enciende LED
 
 WebInterface::WebInterface() {
@@ -110,6 +112,25 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
   if (type == WS_EVT_CONNECT) {
     Serial.printf("WebSocket client #%u connected\n", client->id());
     broadcastSequencerState();
+    
+    // Enviar patrón actual con los 16 tracks
+    delay(100);
+    int pattern = sequencer.getCurrentPattern();
+    StaticJsonDocument<2048> responseDoc;
+    responseDoc["type"] = "pattern";
+    responseDoc["index"] = pattern;
+    
+    for (int track = 0; track < 16; track++) {
+      JsonArray trackSteps = responseDoc.createNestedArray(String(track));
+      for (int step = 0; step < 16; step++) {
+        trackSteps.add(sequencer.getStep(track, step));
+      }
+    }
+    
+    String output;
+    serializeJson(responseDoc, output);
+    ws->textAll(output);
+    Serial.printf("[WebSocket] Sent pattern %d with 16 tracks\n", pattern);
   } else if (type == WS_EVT_DISCONNECT) {
     Serial.printf("WebSocket client #%u disconnected\n", client->id());
   } else if (type == WS_EVT_DATA) {
@@ -188,7 +209,7 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
             responseDoc["type"] = "pattern";
             responseDoc["index"] = pattern;
             
-            for (int track = 0; track < 8; track++) {
+            for (int track = 0; track < 16; track++) {
               JsonArray trackSteps = responseDoc.createNestedArray(String(track));
               for (int step = 0; step < 16; step++) {
                 trackSteps.add(sequencer.getStep(track, step));
@@ -198,6 +219,87 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
             String output;
             serializeJson(responseDoc, output);
             ws->textAll(output);
+          }
+          else if (cmd == "getSamples") {
+            // Obtener lista de samples de una familia
+            const char* family = doc["family"];
+            int padIndex = doc["pad"];
+            
+            Serial.printf("[getSamples] Family: %s, Pad: %d\n", family, padIndex);
+            
+            StaticJsonDocument<1024> responseDoc;
+            responseDoc["type"] = "sampleList";
+            responseDoc["family"] = family;
+            responseDoc["pad"] = padIndex;
+            
+            // Intentar ambos formatos de path
+            String path1 = String("/") + String(family);  // con barra inicial
+            String path2 = String(family);                 // sin barra inicial
+            
+            Serial.printf("[getSamples] Trying path 1: %s\n", path1.c_str());
+            File dir = LittleFS.open(path1, "r");
+            if (!dir || !dir.isDirectory()) {
+              Serial.printf("[getSamples] Path 1 failed, trying path 2: %s\n", path2.c_str());
+              dir = LittleFS.open(path2, "r");
+            }
+            
+            if (dir && dir.isDirectory()) {
+              Serial.println("[getSamples] Directory opened successfully");
+              JsonArray samples = responseDoc.createNestedArray("samples");
+              File file = dir.openNextFile();
+              int count = 0;
+              while (file && count < 10) {
+                if (!file.isDirectory()) {
+                  String filename = file.name();
+                  // Extraer solo el nombre del archivo sin el path
+                  int lastSlash = filename.lastIndexOf('/');
+                  if (lastSlash >= 0) {
+                    filename = filename.substring(lastSlash + 1);
+                  }
+                  
+                  if (filename.endsWith(".raw")) {
+                    Serial.printf("[getSamples] Found: %s (%d bytes)\n", filename.c_str(), file.size());
+                    JsonObject sampleObj = samples.createNestedObject();
+                    sampleObj["name"] = filename;
+                    sampleObj["size"] = file.size();
+                    count++;
+                  }
+                }
+                file = dir.openNextFile();
+              }
+              Serial.printf("[getSamples] Total samples found: %d\n", count);
+            } else {
+              Serial.println("[getSamples] ERROR: Could not open directory with either path format");
+            }
+            
+            String output;
+            serializeJson(responseDoc, output);
+            ws->textAll(output);
+          }
+          else if (cmd == "loadSample") {
+            // Cargar un sample específico en un pad
+            const char* family = doc["family"];
+            const char* filename = doc["filename"];
+            int padIndex = doc["pad"];
+            
+            String fullPath = String(family) + String("/") + String(filename);
+            Serial.printf("[loadSample] Loading %s to pad %d\n", fullPath.c_str(), padIndex);
+            
+            if (sampleManager.loadSample(fullPath.c_str(), padIndex)) {
+              StaticJsonDocument<256> responseDoc;
+              responseDoc["type"] = "sampleLoaded";
+              responseDoc["pad"] = padIndex;
+              responseDoc["filename"] = filename;
+              responseDoc["size"] = sampleManager.getSampleLength(padIndex) * 2; // bytes
+              
+              String output;
+              serializeJson(responseDoc, output);
+              ws->textAll(output);
+              
+              Serial.printf("[loadSample] Success! Size: %d bytes\n", sampleManager.getSampleLength(padIndex) * 2);
+            } else {
+              Serial.println("[loadSample] ERROR: Failed to load sample");
+            }
           }
           else if (cmd == "mute") {
             int track = doc["track"];
@@ -284,6 +386,10 @@ void WebInterface::broadcastSequencerState() {
   doc["pattern"] = sequencer.getCurrentPattern();
   doc["step"] = sequencer.getCurrentStep();
   
+  // Añadir info del sistema
+  doc["samplesLoaded"] = sampleManager.getLoadedSamplesCount();
+  doc["memoryUsed"] = sampleManager.getTotalMemoryUsed();
+  
   String output;
   serializeJson(doc, output);
   ws->textAll(output);
@@ -315,9 +421,9 @@ void WebInterface::update() {
   // Solo cleanup, el broadcast de steps se hace via callback
   ws->cleanupClients();
   
-  // Broadcast audio visualization data every 50ms (~20fps)
+  // Broadcast audio visualization data every 200ms (~5fps) - reducido para evitar heap corruption
   static uint32_t lastVisUpdate = 0;
-  if (millis() - lastVisUpdate > 50) {
+  if (millis() - lastVisUpdate > 200) {
     broadcastVisualizationData();
     lastVisUpdate = millis();
   }
@@ -333,18 +439,16 @@ void WebInterface::broadcastVisualizationData() {
   uint8_t waveform[128];
   audioEngine.captureAudioData(spectrum, waveform);
   
-  // Build JSON message
-  StaticJsonDocument<1024> doc;
+  // Build JSON message - reducido a 512 bytes y eliminado waveform
+  StaticJsonDocument<512> doc;
   doc["type"] = "audioData";
   
+  // Solo spectrum, reducido a 32 bandas para evitar heap corruption
   JsonArray spectrumArray = doc.createNestedArray("spectrum");
-  for (int i = 0; i < 64; i++) {
-    spectrumArray.add(spectrum[i]);
-  }
-  
-  JsonArray waveformArray = doc.createNestedArray("waveform");
-  for (int i = 0; i < 128; i++) {
-    waveformArray.add(waveform[i]);
+  for (int i = 0; i < 32; i++) {
+    // Promediar cada 2 bandas para reducir de 64 a 32
+    int avg = (spectrum[i*2] + spectrum[i*2+1]) / 2;
+    spectrumArray.add(avg);
   }
   
   String output;

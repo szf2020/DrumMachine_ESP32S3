@@ -18,7 +18,31 @@ let isVisualizerActive = true;
 let keyboardPadsActive = {};
 let keyboardHoldTimers = {};
 
-const padNames = ['KICK', 'SNARE', 'CLHAT', 'OPHAT', 'CLAP', 'PERC', 'RIM', 'TOM'];
+// Pad hold timers for long press detection
+let padHoldTimers = {};
+
+// 16 instrumentos RED808
+const padNames = ['BD', 'SD', 'CH', 'OH', 'CP', 'CB', 'RS', 'CL', 'MA', 'CY', 'HT', 'LT', 'MC', 'MT', 'HC', 'LC'];
+
+// Descripción completa de cada instrumento
+const padDescriptions = [
+    'Bass Drum (Bombo)',
+    'Snare Drum (Caja)',
+    'Closed Hi-Hat',
+    'Open Hi-Hat',
+    'Hand Clap (Palmas)',
+    'Cowbell (Cencerro)',
+    'Rim Shot (Aro)',
+    'Claves',
+    'Maracas',
+    'Cymbal (Platillo)',
+    'Hi Tom (Agudo)',
+    'Low Tom (Grave)',
+    'Mid Conga',
+    'Mid Tom (Medio)',
+    'Hi Conga',
+    'Low Conga'
+];
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -28,6 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupControls();
     initVisualizers();
     setupKeyboardControls();
+    initSectionManager();
 });
 
 // WebSocket Connection
@@ -65,15 +90,33 @@ function handleWebSocketMessage(data) {
                 active: data.active,
                 paused: data.paused
             };
-            update
+            updatePadLoopVisual(data.track);
+            break;
         case 'audioData':
             // Audio visualization data
-            if (data.spectrum) spectrumData = data.spectrum;
-            if (data.waveform) waveformData = data.waveform;
-            break;PadLoopVisual(data.track);
+            if (data.spectrum) {
+                spectrumData = data.spectrum;
+                // Debug: mostrar primer y último valor
+                if (spectrumData.length > 0) {
+                    console.log(`Spectrum received: length=${spectrumData.length}, first=${spectrumData[0]}, last=${spectrumData[spectrumData.length-1]}, max=${Math.max(...spectrumData)}`);
+                }
+            }
             break;
         case 'state':
             updateSequencerState(data);
+            // Actualizar info del dispositivo
+            if (data.samplesLoaded !== undefined) {
+                const el = document.getElementById('samplesCount');
+                if (el) el.textContent = data.samplesLoaded + ' samples';
+            }
+            if (data.memoryUsed !== undefined) {
+                const memoryMB = (data.memoryUsed / (1024 * 1024)).toFixed(2);
+                const el = document.getElementById('memoryUsed');
+                if (el) el.textContent = memoryMB + ' MB';
+            }
+            // Asumimos samples: 44.1kHz, mono, 16-bit
+            const formatEl = document.getElementById('sampleFormat');
+            if (formatEl) formatEl.textContent = '44.1kHz Mono 16-bit';
             break;
         case 'step':
             updateCurrentStep(data.step);
@@ -99,28 +142,48 @@ function handleWebSocketMessage(data) {
         case 'kitChanged':
             showNotification(`Kit: ${data.name}`);
             break;
+        case 'sampleList':
+            displaySampleList(data);
+            break;
+        case 'sampleLoaded':
+            updatePadInfo(data);
+            break;
     }
 }
 
 function loadPatternData(data) {
+    console.log('loadPatternData called, data keys:', Object.keys(data));
+    
     // Limpiar sequencer
     document.querySelectorAll('.seq-step').forEach(el => {
         el.classList.remove('active');
     });
     
-    // Cargar datos del pattern
-    for (let track = 0; track < 8; track++) {
-        if (data[track]) {
-            data[track].forEach((active, step) => {
+    // Cargar datos del pattern (16 tracks)
+    let activatedSteps = 0;
+    for (let track = 0; track < 16; track++) {
+        // Las keys pueden ser strings o números
+        const trackData = data[track] || data[track.toString()];
+        if (trackData) {
+            let trackSteps = 0;
+            trackData.forEach((active, step) => {
                 if (active) {
                     const stepEl = document.querySelector(`[data-track="${track}"][data-step="${step}"]`);
                     if (stepEl) {
                         stepEl.classList.add('active');
+                        activatedSteps++;
+                        trackSteps++;
+                    } else if (track >= 8) {
+                        console.warn(`Step element not found for track ${track}, step ${step}`);
                     }
                 }
             });
+            if (track >= 8 && trackSteps > 0) {
+                console.log(`Track ${track} (${padNames[track]}): ${trackSteps} steps activated`);
+            }
         }
     }
+    console.log(`Total steps activated: ${activatedSteps}`);
 }
 
 function updateStatus(connected) {
@@ -140,7 +203,9 @@ function updateStatus(connected) {
 function createPads() {
     const grid = document.getElementById('padsGrid');
     
-    for (let i = 0; i < 8; i++) {
+    const families = ['BD', 'SD', 'CH', 'OH', 'CP', 'CB', 'RS', 'CL', 'MA', 'CY', 'HT', 'LT', 'MC', 'MT', 'HC', 'LC'];
+    
+    for (let i = 0; i < 16; i++) {
         const padContainer = document.createElement('div');
         padContainer.className = 'pad-container';
         
@@ -151,6 +216,7 @@ function createPads() {
         pad.innerHTML = `
             <div class="pad-number">${(i + 1).toString().padStart(2, '0')}</div>
             <div class="pad-name">${padNames[i]}</div>
+            <div class="pad-sample-info" id="sampleInfo-${i}">...</div>
         `;
         
         // Touch y click con tremolo
@@ -176,18 +242,18 @@ function createPads() {
             stopTremolo(i, pad);
         });
         
-        // Botón de loop
-        const loopBtn = document.createElement('button');
-        loopBtn.className = 'loop-btn';
-        loopBtn.innerHTML = '🔁';
-        loopBtn.dataset.pad = i;
-        loopBtn.addEventListener('click', (e) => {
+        // Botón para seleccionar sample
+        const selectBtn = document.createElement('button');
+        selectBtn.className = 'pad-select-btn';
+        selectBtn.textContent = '📂';
+        selectBtn.title = `Select ${families[i]} sample`;
+        selectBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            toggleLoop(i);
+            showSampleSelector(i, families[i]);
         });
         
         padContainer.appendChild(pad);
-        padContainer.appendChild(loopBtn);
+        padContainer.appendChild(selectBtn);
         grid.appendChild(padContainer);
     }
 }
@@ -201,13 +267,6 @@ function startTremolo(padIndex, padElement) {
     setTimeout(() => {
         padElement.style.animation = '';
     }, 350);
-    
-    // Timer para pulsación larga (3 segundos) -> activa loop
-    const timer = setTimeout(() => {
-        // Activar loop después de 3 segundos
-        toggleLoop(padIndex);
-        timer._longPressTriggered = true;
-    }, 3000);
     padHoldTimers[padIndex] = timer;
     
     // Tremolo: triggers repetidos cada 180ms (reducido para evitar saturación)
@@ -273,25 +332,7 @@ function triggerPad(padIndex) {
     }
 }
 
-function toggleLoop(track) {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        const msg = JSON.stringify({
-            cmd: 'toggleLoop',
-            track: track
-        });
-        ws.send(msg);
-    }
-}
 
-function pauseLoop(track) {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        const msg = JSON.stringify({
-            cmd: 'pauseLoop',
-            track: track
-        });
-        ws.send(msg);
-    }
-}
 
 function flashPad(padIndex) {
     const pad = document.querySelector(`[data-pad="${padIndex}"]`);
@@ -328,11 +369,11 @@ function updatePadLoopVisual(padIndex) {
 function createSequencer() {
     const grid = document.getElementById('sequencerGrid');
     const indicator = document.getElementById('stepIndicator');
-    const trackNames = ['KICK', 'SNARE', 'CH', 'OH', 'CLAP', 'COW', 'TOM', 'PERC'];
-    const trackColors = ['#e74c3c', '#3498db', '#f39c12', '#2ecc71', '#9b59b6', '#e67e22', '#1abc9c', '#95a5a6'];
+    const trackNames = ['BD', 'SD', 'CH', 'OH', 'CP', 'CB', 'RS', 'CL', 'MA', 'CY', 'HT', 'LT', 'MC', 'MT', 'HC', 'LC'];
+    const trackColors = ['#e74c3c', '#3498db', '#f39c12', '#2ecc71', '#9b59b6', '#e67e22', '#1abc9c', '#95a5a6', '#f1c40f', '#16a085', '#d35400', '#8e44ad', '#c0392b', '#27ae60', '#2980b9', '#7f8c8d'];
     
-    // 8 tracks x 16 steps (con labels)
-    for (let track = 0; track < 8; track++) {
+    // 16 tracks x 16 steps (con labels)
+    for (let track = 0; track < 16; track++) {
         // Track label con botón mute
         const label = document.createElement('div');
         label.className = 'track-label';
@@ -447,14 +488,6 @@ function setupControls() {
             });
         }
     });
-    
-    // Loop Record button
-    const loopBtn = document.createElement('button');
-    loopBtn.id = 'loopBtn';
-    loopBtn.className = 'btn btn-loop';
-    loopBtn.textContent = '● REC LOOP';
-    loopBtn.addEventListener('click', toggleLoopRecording);
-    document.querySelector('.sequencer-controls').appendChild(loopBtn);
     
     // Tempo slider
     const tempoSlider = document.getElementById('tempoSlider');
@@ -617,58 +650,7 @@ function setupFXControls() {
     });
 }
 
-function toggleLoopRecording() {
-    const loopBtn = document.getElementById('loopBtn');
-    
-    if (!isRecording) {
-        // Iniciar grabación
-        isRecording = true;
-        recordedSteps = [];
-        recordStartTime = Date.now();
-        loopBtn.classList.add('recording');
-        loopBtn.textContent = '■ STOP REC';
-        console.log('Loop recording started');
-    } else {
-        // Detener y procesar
-        isRecording = false;
-        loopBtn.classList.remove('recording');
-        loopBtn.textContent = '● REC LOOP';
-        
-        if (recordedSteps.length > 0) {
-            processRecordedLoop();
-        }
-    }
-}
 
-function processRecordedLoop() {
-    console.log('Processing recorded loop:', recordedSteps);
-    
-    // Encontrar duración total
-    const totalDuration = Math.max(...recordedSteps.map(s => s.time));
-    const stepDuration = totalDuration / 16;
-    
-    // Mapear a steps del sequencer
-    recordedSteps.forEach(record => {
-        const stepIndex = Math.floor(record.time / stepDuration);
-        if (stepIndex < 16) {
-            const track = record.pad;
-            
-            // Activar step en sequencer
-            const stepEl = document.querySelector(`[data-track="${track}"][data-step="${stepIndex}"]`);
-            if (stepEl && !stepEl.classList.contains('active')) {
-                stepEl.classList.add('active');
-                sendWebSocket({
-                    cmd: 'setStep',
-                    track: track,
-                    step: stepIndex,
-                    active: true
-                });
-            }
-        }
-    });
-    
-    alert(`Loop grabado: ${recordedSteps.length} hits mapeados a 16 steps`);
-}
 
 function updateSequencerState(data) {
     document.getElementById('tempoSlider').value = data.tempo;
@@ -697,25 +679,26 @@ function sendWebSocket(data) {
 
 function initVisualizers() {
     const spectrumCanvas = document.getElementById('spectrumCanvas');
-    const waveformCanvas = document.getElementById('waveformCanvas');
     
-    if (!spectrumCanvas || !waveformCanvas) return;
+    if (!spectrumCanvas) {
+        console.error('Spectrum canvas not found!');
+        return;
+    }
     
     const spectrumCtx = spectrumCanvas.getContext('2d');
-    const waveformCtx = waveformCanvas.getContext('2d');
     
     // Set actual canvas size for crisp rendering
     spectrumCanvas.width = 600;
     spectrumCanvas.height = 200;
-    waveformCanvas.width = 600;
-    waveformCanvas.height = 200;
+    
+    console.log('Visualizers initialized successfully');
     
     function drawSpectrum() {
         const width = spectrumCanvas.width;
         const height = spectrumCanvas.height;
         
-        // Clear canvas
-        spectrumCtx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+        // Clear canvas with slight fade
+        spectrumCtx.fillStyle = 'rgba(0, 0, 0, 0.1)';
         spectrumCtx.fillRect(0, 0, width, height);
         
         // Draw grid
@@ -729,6 +712,24 @@ function initVisualizers() {
             spectrumCtx.stroke();
         }
         
+        // Check if we have valid data
+        let hasData = false;
+        for (let i = 0; i < spectrumData.length; i++) {
+            if (spectrumData[i] > 0) {
+                hasData = true;
+                break;
+            }
+        }
+        
+        if (!hasData) {
+            // Draw "No Signal" message
+            spectrumCtx.fillStyle = '#666';
+            spectrumCtx.font = '14px Roboto Mono';
+            spectrumCtx.textAlign = 'center';
+            spectrumCtx.fillText('No Audio Signal', width / 2, height / 2);
+            spectrumCtx.textAlign = 'left';
+        }
+        
         // Draw spectrum bars
         const barWidth = width / spectrumData.length;
         
@@ -739,11 +740,26 @@ function initVisualizers() {
             const x = i * barWidth;
             const y = height - barHeight;
             
-            // Create gradient
+            // Create gradient based on frequency
             const gradient = spectrumCtx.createLinearGradient(x, y, x, height);
-            gradient.addColorStop(0, '#FF0000');
-            gradient.addColorStop(0.5, '#FF4444');
-            gradient.addColorStop(1, '#880000');
+            
+            // Color based on frequency band
+            if (i < 16) {
+                // Low frequencies - Red
+                gradient.addColorStop(0, '#FF0000');
+                gradient.addColorStop(0.5, '#FF4444');
+                gradient.addColorStop(1, '#880000');
+            } else if (i < 40) {
+                // Mid frequencies - Orange/Yellow
+                gradient.addColorStop(0, '#FFaa00');
+                gradient.addColorStop(0.5, '#FF8800');
+                gradient.addColorStop(1, '#884400');
+            } else {
+                // High frequencies - Yellow/Green
+                gradient.addColorStop(0, '#FFFF00');
+                gradient.addColorStop(0.5, '#AAFF00');
+                gradient.addColorStop(1, '#448800');
+            }
             
             spectrumCtx.fillStyle = gradient;
             spectrumCtx.fillRect(x, y, barWidth - 1, barHeight);
@@ -764,61 +780,10 @@ function initVisualizers() {
         spectrumCtx.fillText('20kHz', width - 40, height - 5);
     }
     
-    function drawWaveform() {
-        const width = waveformCanvas.width;
-        const height = waveformCanvas.height;
-        const centerY = height / 2;
-        
-        // Clear canvas
-        waveformCtx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-        waveformCtx.fillRect(0, 0, width, height);
-        
-        // Draw center line
-        waveformCtx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-        waveformCtx.lineWidth = 1;
-        waveformCtx.beginPath();
-        waveformCtx.moveTo(0, centerY);
-        waveformCtx.lineTo(width, centerY);
-        waveformCtx.stroke();
-        
-        // Draw waveform
-        waveformCtx.strokeStyle = '#FF0000';
-        waveformCtx.lineWidth = 2;
-        waveformCtx.shadowBlur = 5;
-        waveformCtx.shadowColor = '#FF0000';
-        waveformCtx.beginPath();
-        
-        const sliceWidth = width / waveformData.length;
-        
-        for (let i = 0; i < waveformData.length; i++) {
-            const value = waveformData[i];
-            const v = (value / 255.0) * height;
-            const y = centerY + (v - centerY);
-            const x = i * sliceWidth;
-            
-            if (i === 0) {
-                waveformCtx.moveTo(x, y);
-            } else {
-                waveformCtx.lineTo(x, y);
-            }
-        }
-        
-        waveformCtx.stroke();
-        waveformCtx.shadowBlur = 0;
-        
-        // Draw scale marks
-        waveformCtx.fillStyle = '#666';
-        waveformCtx.font = '10px Roboto Mono';
-        waveformCtx.fillText('+1.0', 5, 15);
-        waveformCtx.fillText('0.0', 5, centerY + 5);
-        waveformCtx.fillText('-1.0', 5, height - 5);
-    }
-    
     // Animation loop
     function animate() {
         if (isVisualizerActive) {
             drawSpectrum();
-            drawWaveform();
         }
         requestAnimationFrame(animate);
     }
@@ -832,16 +797,22 @@ function initVisualizers() {
 let isPlaying = false;
 
 function setupKeyboardControls() {
+    // Mapeo de teclas a pads (16 pads)
+    const keyToPad = {
+        '1': 0, '2': 1, '3': 2, '4': 3, '5': 4, '6': 5, '7': 6, '8': 7, '9': 8, '0': 9,
+        'Q': 10, 'W': 11, 'E': 12, 'R': 13, 'T': 14, 'Y': 15
+    };
+    
     document.addEventListener('keydown', (e) => {
         // Evitar repetición si ya está presionada
         if (e.repeat) return;
         
         const key = e.key.toUpperCase();
         
-        // Números 1-8: Pads con tremolo
-        if (key >= '1' && key <= '8') {
+        // Pads 1-9, 0, Q-Y con tremolo
+        if (keyToPad.hasOwnProperty(key)) {
             e.preventDefault();
-            const padIndex = parseInt(key) - 1;
+            const padIndex = keyToPad[key];
             
             if (!keyboardPadsActive[padIndex]) {
                 keyboardPadsActive[padIndex] = true;
@@ -858,38 +829,38 @@ function setupKeyboardControls() {
             togglePlayPause();
         }
         
-        // Q: Subir BPM
-        else if (key === 'Q') {
-            e.preventDefault();
-            adjustBPM(5);
-        }
-        
-        // A: Bajar BPM
-        else if (key === 'A') {
+        // [: Bajar BPM
+        else if (key === '[') {
             e.preventDefault();
             adjustBPM(-5);
         }
         
-        // W: Subir Volumen
-        else if (key === 'W') {
+        // ]: Subir BPM
+        else if (key === ']') {
             e.preventDefault();
-            adjustVolume(5);
+            adjustBPM(5);
         }
         
-        // S: Bajar Volumen
-        else if (key === 'S') {
+        // -: Bajar Volumen
+        else if (key === '-' || key === '_') {
             e.preventDefault();
             adjustVolume(-5);
+        }
+        
+        // +: Subir Volumen
+        else if (key === '+' || key === '=') {
+            e.preventDefault();
+            adjustVolume(5);
         }
     });
     
     document.addEventListener('keyup', (e) => {
         const key = e.key.toUpperCase();
         
-        // Números 1-8: Soltar pads
-        if (key >= '1' && key <= '8') {
+        // Soltar pads
+        if (keyToPad.hasOwnProperty(key)) {
             e.preventDefault();
-            const padIndex = parseInt(key) - 1;
+            const padIndex = keyToPad[key];
             
             if (keyboardPadsActive[padIndex]) {
                 keyboardPadsActive[padIndex] = false;
@@ -901,8 +872,8 @@ function setupKeyboardControls() {
         }
     });
     
-    console.log('✓ Keyboard controls initialized');
-    console.log('  Keys: 1-8=Pads, SPACE=Play/Pause, Q/A=BPM, W/S=Volume');
+    console.log('✓ Keyboard controls initialized (16 pads)');
+    console.log('  Keys: 1-9,0,Q-Y=Pads, SPACE=Play/Pause, [/]=BPM, -/+=Volume');
 }
 
 function togglePlayPause() {
@@ -972,4 +943,329 @@ function adjustVolume(change) {
         console.log(`Volume: ${newVolume}%`);
     }
 }
+
+// ========================================
+// SECTION MANAGER
+// ========================================
+
+let sectionOrder = [];
+let sectionVisibility = {};
+
+function initSectionManager() {
+    // Obtener todas las secciones
+    const sections = document.querySelectorAll('[data-section]');
+    const container = document.querySelector('.container');
+    
+    // Cargar configuración guardada
+    loadSectionConfig();
+    
+    // Si no hay configuración, crear una por defecto
+    if (sectionOrder.length === 0) {
+        sections.forEach(section => {
+            const sectionId = section.getAttribute('data-section');
+            sectionOrder.push(sectionId);
+            sectionVisibility[sectionId] = true;
+        });
+        saveSectionConfig();
+    }
+    
+    // Aplicar configuración
+    applySectionConfig();
+    
+    // Generar lista de secciones en el panel
+    generateSectionList();
+    
+    // Eventos del menú
+    const menuToggle = document.getElementById('menuToggle');
+    const closeManager = document.getElementById('closeManager');
+    const managerOverlay = document.getElementById('managerOverlay');
+    const sectionManager = document.getElementById('sectionManager');
+    
+    menuToggle.addEventListener('click', () => {
+        sectionManager.classList.add('active');
+        managerOverlay.classList.add('active');
+        menuToggle.classList.add('active');
+    });
+    
+    const closePanel = () => {
+        sectionManager.classList.remove('active');
+        managerOverlay.classList.remove('active');
+        menuToggle.classList.remove('active');
+    };
+    
+    closeManager.addEventListener('click', closePanel);
+    managerOverlay.addEventListener('click', closePanel);
+}
+
+function loadSectionConfig() {
+    try {
+        const orderData = localStorage.getItem('sectionOrder');
+        const visibilityData = localStorage.getItem('sectionVisibility');
+        
+        if (orderData) {
+            sectionOrder = JSON.parse(orderData);
+        }
+        
+        if (visibilityData) {
+            sectionVisibility = JSON.parse(visibilityData);
+        }
+    } catch (e) {
+        console.error('Error loading section config:', e);
+    }
+}
+
+function saveSectionConfig() {
+    try {
+        localStorage.setItem('sectionOrder', JSON.stringify(sectionOrder));
+        localStorage.setItem('sectionVisibility', JSON.stringify(sectionVisibility));
+    } catch (e) {
+        console.error('Error saving section config:', e);
+    }
+}
+
+function applySectionConfig() {
+    const container = document.querySelector('.container');
+    const footer = document.querySelector('.footer');
+    
+    // Reordenar secciones según el orden guardado
+    sectionOrder.forEach((sectionId, index) => {
+        const section = document.getElementById(`section-${sectionId}`);
+        if (section) {
+            // Mover la sección antes del footer
+            container.insertBefore(section, footer);
+            
+            // Aplicar visibilidad
+            if (sectionVisibility[sectionId] === false) {
+                section.style.display = 'none';
+            } else {
+                section.style.display = '';
+            }
+        }
+    });
+}
+
+function generateSectionList() {
+    const sectionList = document.getElementById('sectionList');
+    sectionList.innerHTML = '';
+    
+    sectionOrder.forEach((sectionId, index) => {
+        const section = document.getElementById(`section-${sectionId}`);
+        if (!section) return;
+        
+        const title = section.getAttribute('data-title') || sectionId;
+        const isVisible = sectionVisibility[sectionId] !== false;
+        
+        const item = document.createElement('div');
+        item.className = 'section-item';
+        item.draggable = true;
+        item.dataset.sectionId = sectionId;
+        
+        item.innerHTML = `
+            <div class="section-item-header">
+                <span class="drag-handle">☰</span>
+                <span class="section-item-title">${title}</span>
+                <label class="visibility-toggle">
+                    <input type="checkbox" ${isVisible ? 'checked' : ''} 
+                           onchange="toggleSectionVisibility('${sectionId}', this.checked)">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="section-item-controls">
+                <button class="move-btn" onclick="moveSectionUp('${sectionId}')" 
+                        ${index === 0 ? 'disabled' : ''}>↑ Arriba</button>
+                <button class="move-btn" onclick="moveSectionDown('${sectionId}')" 
+                        ${index === sectionOrder.length - 1 ? 'disabled' : ''}>↓ Abajo</button>
+            </div>
+        `;
+        
+        sectionList.appendChild(item);
+        
+        // Drag and Drop events
+        item.addEventListener('dragstart', handleDragStart);
+        item.addEventListener('dragover', handleDragOver);
+        item.addEventListener('drop', handleDrop);
+        item.addEventListener('dragend', handleDragEnd);
+    });
+}
+
+function toggleSectionVisibility(sectionId, isVisible) {
+    sectionVisibility[sectionId] = isVisible;
+    
+    const section = document.getElementById(`section-${sectionId}`);
+    if (section) {
+        section.style.display = isVisible ? '' : 'none';
+    }
+    
+    saveSectionConfig();
+}
+
+function moveSectionUp(sectionId) {
+    const index = sectionOrder.indexOf(sectionId);
+    if (index > 0) {
+        // Intercambiar con el anterior
+        [sectionOrder[index - 1], sectionOrder[index]] = 
+        [sectionOrder[index], sectionOrder[index - 1]];
+        
+        saveSectionConfig();
+        applySectionConfig();
+        generateSectionList();
+    }
+}
+
+function moveSectionDown(sectionId) {
+    const index = sectionOrder.indexOf(sectionId);
+    if (index < sectionOrder.length - 1) {
+        // Intercambiar con el siguiente
+        [sectionOrder[index], sectionOrder[index + 1]] = 
+        [sectionOrder[index + 1], sectionOrder[index]];
+        
+        saveSectionConfig();
+        applySectionConfig();
+        generateSectionList();
+    }
+}
+
+// Drag and Drop handlers
+let draggedItem = null;
+
+function handleDragStart(e) {
+    draggedItem = this;
+    this.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+}
+
+function handleDragOver(e) {
+    if (e.preventDefault) {
+        e.preventDefault();
+    }
+    e.dataTransfer.dropEffect = 'move';
+    
+    const afterElement = getDragAfterElement(this.parentElement, e.clientY);
+    if (afterElement == null) {
+        this.parentElement.appendChild(draggedItem);
+    } else {
+        this.parentElement.insertBefore(draggedItem, afterElement);
+    }
+    
+    return false;
+}
+
+function handleDrop(e) {
+    if (e.stopPropagation) {
+        e.stopPropagation();
+    }
+    
+    // Actualizar el orden
+    const items = document.querySelectorAll('.section-item');
+    sectionOrder = [];
+    items.forEach(item => {
+        sectionOrder.push(item.dataset.sectionId);
+    });
+    
+    saveSectionConfig();
+    applySectionConfig();
+    generateSectionList();
+    
+    return false;
+}
+
+function handleDragEnd(e) {
+    this.classList.remove('dragging');
+}
+
+function getDragAfterElement(container, y) {
+    const draggableElements = [...container.querySelectorAll('.section-item:not(.dragging)')];
+    
+    return draggableElements.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        
+        if (offset < 0 && offset > closest.offset) {
+            return { offset: offset, element: child };
+        } else {
+            return closest;
+        }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+// Sample Selector Functions
+function showSampleSelector(padIndex, family) {
+    // Solicitar lista de samples
+    sendWebSocket({
+        cmd: 'getSamples',
+        family: family,
+        pad: padIndex
+    });
+}
+
+function displaySampleList(data) {
+    const padIndex = data.pad;
+    const family = data.family;
+    const samples = data.samples;
+    
+    if (!samples || samples.length === 0) {
+        alert(`No samples found for ${family}`);
+        return;
+    }
+    
+    // Crear modal
+    const modal = document.createElement('div');
+    modal.className = 'sample-modal';
+    modal.innerHTML = `
+        <div class="sample-modal-content">
+            <h3>Select ${family} Sample for Pad ${padIndex + 1}</h3>
+            <div class="sample-list"></div>
+            <button class="btn-close-modal">Close</button>
+        </div>
+    `;
+    
+    const sampleList = modal.querySelector('.sample-list');
+    
+    samples.forEach(sample => {
+        const sampleItem = document.createElement('div');
+        sampleItem.className = 'sample-item';
+        const sizeKB = (sample.size / 1024).toFixed(1);
+        sampleItem.innerHTML = `
+            <span class="sample-name">${sample.name}</span>
+            <span class="sample-size">${sizeKB} KB</span>
+        `;
+        sampleItem.addEventListener('click', () => {
+            loadSampleToPad(padIndex, family, sample.name);
+            document.body.removeChild(modal);
+        });
+        sampleList.appendChild(sampleItem);
+    });
+    
+    modal.querySelector('.btn-close-modal').addEventListener('click', () => {
+        document.body.removeChild(modal);
+    });
+    
+    document.body.appendChild(modal);
+}
+
+function loadSampleToPad(padIndex, family, filename) {
+    sendWebSocket({
+        cmd: 'loadSample',
+        family: family,
+        filename: filename,
+        pad: padIndex
+    });
+    console.log(`Loading ${family}/${filename} to pad ${padIndex}`);
+}
+
+function updatePadInfo(data) {
+    const padIndex = data.pad;
+    const filename = data.filename;
+    const size = data.size;
+    
+    const infoEl = document.getElementById(`sampleInfo-${padIndex}`);
+    if (infoEl) {
+        const sizeKB = (size / 1024).toFixed(1);
+        infoEl.textContent = `${filename} (${sizeKB}KB)`;
+        infoEl.title = `${filename} - ${sizeKB} KB - 44.1kHz Mono`;
+    }
+    
+    showNotification(`Pad ${padIndex + 1}: ${filename} loaded`);
+}
+
 
