@@ -199,6 +199,14 @@ bool WebInterface::begin(const char* ssid, const char* password) {
   server->begin();
   Serial.println("✓ RED808 Web Server iniciado");
   
+  // Iniciar servidor UDP
+  if (udp.begin(UDP_PORT)) {
+    Serial.printf("✓ UDP Server listening on port %d\n", UDP_PORT);
+    Serial.printf("  Send JSON commands to %s:%d\n", WiFi.localIP().toString().c_str(), UDP_PORT);
+  } else {
+    Serial.println("⚠ Failed to start UDP server");
+  }
+  
   initialized = true;
   return true;
 }
@@ -319,39 +327,13 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
         DeserializationError error = deserializeJson(doc, (char*)data);
         
         if (!error) {
+          // Usar función común para procesar comandos
+          processCommand(doc);
+          
+          // Comandos específicos del WebSocket que requieren respuesta
           String cmd = doc["cmd"];
           
-          if (cmd == "trigger") {
-            // Fallback para JSON
-            int pad = doc["pad"];
-            int velocity = doc.containsKey("vel") ? doc["vel"].as<int>() : 127;
-            triggerPadWithLED(pad, velocity);
-            broadcastPadTrigger(pad);
-          }
-          else if (cmd == "setStep") {
-            int track = doc["track"];
-            int step = doc["step"];
-            bool active = doc["active"];
-            sequencer.setStep(track, step, active);
-          }
-          else if (cmd == "start") {
-            sequencer.start();
-          }
-          else if (cmd == "stop") {
-            sequencer.stop();
-          }
-          else if (cmd == "tempo") {
-            float tempo = doc["value"];
-            sequencer.setTempo(tempo);
-          }
-          else if (cmd == "selectPattern") {
-            int pattern = doc["index"];
-            sequencer.selectPattern(pattern);
-            // Broadcast nuevo estado
-            delay(50);
-            broadcastSequencerState();
-          }
-          else if (cmd == "getPattern") {
+          if (cmd == "getPattern") {
             int pattern = sequencer.getCurrentPattern();
             StaticJsonDocument<4096> responseDoc;
             responseDoc["type"] = "pattern";
@@ -448,118 +430,8 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
               ws->textAll(output);
             }
           }
-          else if (cmd == "loadSample") {
-            // Cargar un sample específico en un pad
-            const char* family = doc["family"];
-            const char* filename = doc["filename"];
-            int padIndex = doc["pad"];
-            
-            String fullPath = String("/") + String(family) + String("/") + String(filename);
-            Serial.printf("[loadSample] Loading %s to pad %d\n", fullPath.c_str(), padIndex);
-            
-            if (sampleManager.loadSample(fullPath.c_str(), padIndex)) {
-              StaticJsonDocument<256> responseDoc;
-              responseDoc["type"] = "sampleLoaded";
-              responseDoc["pad"] = padIndex;
-              responseDoc["filename"] = filename;
-              responseDoc["size"] = sampleManager.getSampleLength(padIndex) * 2; // bytes
-              responseDoc["format"] = detectSampleFormat(filename);
-              
-              String output;
-              serializeJson(responseDoc, output);
-              ws->textAll(output);
-              
-              Serial.printf("[loadSample] Success! Size: %d bytes\n", sampleManager.getSampleLength(padIndex) * 2);
-            } else {
-              Serial.println("[loadSample] ERROR: Failed to load sample");
-            }
-          }
-          else if (cmd == "mute") {
-            int track = doc["track"];
-            bool muted = doc["value"];
-            sequencer.muteTrack(track, muted);
-          }
-          else if (cmd == "toggleLoop") {
-            int track = doc["track"];
-            sequencer.toggleLoop(track);
-            
-            // Broadcast loop state
-            StaticJsonDocument<128> responseDoc;
-            responseDoc["type"] = "loopState";
-            responseDoc["track"] = track;
-            responseDoc["active"] = sequencer.isLooping(track);
-            responseDoc["paused"] = sequencer.isLoopPaused(track);
-            
-            String output;
-            serializeJson(responseDoc, output);
-            ws->textAll(output);
-          }
-          else if (cmd == "pauseLoop") {
-            int track = doc["track"];
-            sequencer.pauseLoop(track);
-            
-            // Broadcast loop state
-            StaticJsonDocument<128> responseDoc;
-            responseDoc["type"] = "loopState";
-            responseDoc["track"] = track;
-            responseDoc["active"] = sequencer.isLooping(track);
-            responseDoc["paused"] = sequencer.isLoopPaused(track);
-            
-            String output;
-            serializeJson(responseDoc, output);
-            ws->textAll(output);
-          }
-          else if (cmd == "setLedMonoMode") {
-            bool monoMode = doc["value"];
-            setLedMonoMode(monoMode);
-            Serial.printf("[LED] Web request mono=%s\n", monoMode ? "true" : "false");
-          }
-          // FX Controls
-          else if (cmd == "setFilter") {
-            int type = doc["type"];
-            audioEngine.setFilterType((FilterType)type);
-            Serial.printf("[FX] Filter type: %d\n", type);
-          }
-          else if (cmd == "setFilterCutoff") {
-            float cutoff = doc["value"];
-            audioEngine.setFilterCutoff(cutoff);
-            Serial.printf("[FX] Cutoff: %.1f Hz\n", cutoff);
-          }
-          else if (cmd == "setFilterResonance") {
-            float resonance = doc["value"];
-            audioEngine.setFilterResonance(resonance);
-            Serial.printf("[FX] Resonance: %.1f\n", resonance);
-          }
-          else if (cmd == "setBitCrush") {
-            int bits = doc["value"];
-            audioEngine.setBitDepth(bits);
-            Serial.printf("[FX] Bit depth: %d\n", bits);
-          }
-          else if (cmd == "setDistortion") {
-            float amount = doc["value"];
-            audioEngine.setDistortion(amount);
-            Serial.printf("[FX] Distortion: %.1f\n", amount);
-          }
-          else if (cmd == "setSampleRate") {
-            int rate = doc["value"];
-            audioEngine.setSampleRateReduction(rate);
-            Serial.printf("[FX] Sample rate: %d Hz\n", rate);
-          }
-          else if (cmd == "setSequencerVolume") {
-            int volume = doc["value"];
-            audioEngine.setSequencerVolume(volume);
-            Serial.printf("[Volume] Sequencer volume: %d%%\n", volume);
-          }
-          else if (cmd == "setLiveVolume") {
-            int volume = doc["value"];
-            audioEngine.setLiveVolume(volume);
-            Serial.printf("[Volume] Live volume: %d%%\n", volume);
-          }
-          else if (cmd == "setVolume") {
-            int volume = doc["value"];
-            audioEngine.setMasterVolume(volume);
-            Serial.printf("[Volume] Master volume: %d%%\n", volume);
-          }
+          // getSamples y loadSample ahora manejados en processCommand()
+          // Comandos restantes ya procesados por processCommand()
         }
       }
     }
@@ -653,3 +525,174 @@ void WebInterface::broadcastVisualizationData() {
   ws->textAll(output);
 }
 
+// Procesar comandos JSON (compartido entre WebSocket y UDP)
+void WebInterface::processCommand(const JsonDocument& doc) {
+  String cmd = doc["cmd"];
+  
+  if (cmd == "trigger") {
+    int pad = doc["pad"];
+    int velocity = doc.containsKey("vel") ? doc["vel"].as<int>() : 127;
+    triggerPadWithLED(pad, velocity);
+    broadcastPadTrigger(pad);
+  }
+  else if (cmd == "setStep") {
+    int track = doc["track"];
+    int step = doc["step"];
+    bool active = doc["active"];
+    sequencer.setStep(track, step, active);
+  }
+  else if (cmd == "start") {
+    sequencer.start();
+  }
+  else if (cmd == "stop") {
+    sequencer.stop();
+  }
+  else if (cmd == "tempo") {
+    float tempo = doc["value"];
+    sequencer.setTempo(tempo);
+  }
+  else if (cmd == "selectPattern") {
+    int pattern = doc["index"];
+    sequencer.selectPattern(pattern);
+    delay(50);
+    broadcastSequencerState();
+  }
+  else if (cmd == "loadSample") {
+    const char* family = doc["family"];
+    const char* filename = doc["filename"];
+    int padIndex = doc["pad"];
+    
+    String fullPath = String("/") + String(family) + String("/") + String(filename);
+    Serial.printf("[loadSample] Loading %s to pad %d\n", fullPath.c_str(), padIndex);
+    
+    if (sampleManager.loadSample(fullPath.c_str(), padIndex)) {
+      StaticJsonDocument<256> responseDoc;
+      responseDoc["type"] = "sampleLoaded";
+      responseDoc["pad"] = padIndex;
+      responseDoc["filename"] = filename;
+      responseDoc["size"] = sampleManager.getSampleLength(padIndex) * 2;
+      responseDoc["format"] = detectSampleFormat(filename);
+      
+      String output;
+      serializeJson(responseDoc, output);
+      if (ws) ws->textAll(output);
+      
+      Serial.printf("[loadSample] Success! Size: %d bytes\n", sampleManager.getSampleLength(padIndex) * 2);
+    }
+  }
+  else if (cmd == "mute") {
+    int track = doc["track"];
+    bool muted = doc["value"];
+    sequencer.muteTrack(track, muted);
+  }
+  else if (cmd == "toggleLoop") {
+    int track = doc["track"];
+    sequencer.toggleLoop(track);
+    
+    StaticJsonDocument<128> responseDoc;
+    responseDoc["type"] = "loopState";
+    responseDoc["track"] = track;
+    responseDoc["active"] = sequencer.isLooping(track);
+    responseDoc["paused"] = sequencer.isLoopPaused(track);
+    
+    String output;
+    serializeJson(responseDoc, output);
+    if (ws) ws->textAll(output);
+  }
+  else if (cmd == "pauseLoop") {
+    int track = doc["track"];
+    sequencer.pauseLoop(track);
+    
+    StaticJsonDocument<128> responseDoc;
+    responseDoc["type"] = "loopState";
+    responseDoc["track"] = track;
+    responseDoc["active"] = sequencer.isLooping(track);
+    responseDoc["paused"] = sequencer.isLoopPaused(track);
+    
+    String output;
+    serializeJson(responseDoc, output);
+    if (ws) ws->textAll(output);
+  }
+  else if (cmd == "setLedMonoMode") {
+    bool monoMode = doc["value"];
+    setLedMonoMode(monoMode);
+  }
+  else if (cmd == "setFilter") {
+    int type = doc["type"];
+    audioEngine.setFilterType((FilterType)type);
+  }
+  else if (cmd == "setFilterCutoff") {
+    float cutoff = doc["value"];
+    audioEngine.setFilterCutoff(cutoff);
+  }
+  else if (cmd == "setFilterResonance") {
+    float resonance = doc["value"];
+    audioEngine.setFilterResonance(resonance);
+  }
+  else if (cmd == "setBitCrush") {
+    int bits = doc["value"];
+    audioEngine.setBitDepth(bits);
+  }
+  else if (cmd == "setDistortion") {
+    float amount = doc["value"];
+    audioEngine.setDistortion(amount);
+  }
+  else if (cmd == "setSampleRate") {
+    int rate = doc["value"];
+    audioEngine.setSampleRateReduction(rate);
+  }
+  else if (cmd == "setSequencerVolume") {
+    int volume = doc["value"];
+    audioEngine.setSequencerVolume(volume);
+  }
+  else if (cmd == "setLiveVolume") {
+    int volume = doc["value"];
+    audioEngine.setLiveVolume(volume);
+  }
+  else if (cmd == "setVolume") {
+    int volume = doc["value"];
+    audioEngine.setMasterVolume(volume);
+  }
+}
+
+// Manejar paquetes UDP entrantes
+void WebInterface::handleUdp() {
+  int packetSize = udp.parsePacket();
+  if (packetSize > 0) {
+    char incomingPacket[512];
+    int len = udp.read(incomingPacket, 511);
+    if (len > 0) {
+      incomingPacket[len] = 0;
+      
+      Serial.printf("[UDP] Received %d bytes from %s:%d\n", 
+                    len, udp.remoteIP().toString().c_str(), udp.remotePort());
+      Serial.printf("[UDP] Data: %s\n", incomingPacket);
+      
+      // Parsear JSON
+      StaticJsonDocument<512> doc;
+      DeserializationError error = deserializeJson(doc, incomingPacket);
+      
+      if (!error) {
+        // Procesar comando usando la función común
+        processCommand(doc);
+        
+        // Enviar respuesta OK al cliente UDP
+        StaticJsonDocument<64> responseDoc;
+        responseDoc["status"] = "ok";
+        String response;
+        serializeJson(responseDoc, response);
+        
+        udp.beginPacket(udp.remoteIP(), udp.remotePort());
+        udp.write((const uint8_t*)response.c_str(), response.length());
+        udp.endPacket();
+      } else {
+        Serial.printf("[UDP] JSON parse error: %s\n", error.c_str());
+        
+        // Enviar error al cliente
+        udp.beginPacket(udp.remoteIP(), udp.remotePort());
+        udp.print("{\"status\":\"error\",\"msg\":\"Invalid JSON\"}");
+        udp.endPacket();
+      }
+    }
+  }
+}

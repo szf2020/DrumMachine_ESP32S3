@@ -80,6 +80,7 @@ void systemTask(void *pvParameters) {
     while (true) {
         sequencer.update();
         webInterface.update(); // WiFi activado
+        webInterface.handleUdp(); // Manejar comandos UDP
         
         // Fade out del LED después de trigger
         if (ledFading && millis() - lastLedUpdate > 20) {  // Más lento (cada 20ms)
