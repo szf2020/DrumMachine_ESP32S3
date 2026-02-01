@@ -116,6 +116,44 @@ function handleKeyboardShortcut(e) {
     return true;
   }
   
+  // Q-Y: Direct Pattern Selection (1-6)
+  if (key === 'Q' && !selectedCell) {
+    e.preventDefault();
+    if (window.selectPattern) window.selectPattern(0);
+    showToast('🎶 HIP HOP', TOAST_TYPES.INFO, 1500);
+    return true;
+  }
+  if (key === 'W' && !selectedCell) {
+    e.preventDefault();
+    if (window.selectPattern) window.selectPattern(1);
+    showToast('🎶 TECHNO', TOAST_TYPES.INFO, 1500);
+    return true;
+  }
+  if (key === 'E' && !selectedCell) {
+    e.preventDefault();
+    if (window.selectPattern) window.selectPattern(2);
+    showToast('🎶 DnB', TOAST_TYPES.INFO, 1500);
+    return true;
+  }
+  if (key === 'R' && !selectedCell) {
+    e.preventDefault();
+    if (window.selectPattern) window.selectPattern(3);
+    showToast('🎶 BREAK', TOAST_TYPES.INFO, 1500);
+    return true;
+  }
+  if (key === 'T' && !selectedCell) {
+    e.preventDefault();
+    if (window.selectPattern) window.selectPattern(4);
+    showToast('🎶 HOUSE', TOAST_TYPES.INFO, 1500);
+    return true;
+  }
+  if (key === 'Y' && !selectedCell) {
+    e.preventDefault();
+    if (window.selectPattern) window.selectPattern(5);
+    showToast('🎶 TRAP', TOAST_TYPES.INFO, 1500);
+    return true;
+  }
+  
   // [: Decrease BPM
   if (key === '[') {
     e.preventDefault();
@@ -942,6 +980,20 @@ function createKeyboardSidebar() {
       </div>
       
       <div class="key-section">
+        <h3>🎵 Patterns</h3>
+        <div class="key-list">
+          <div class="key-item"><kbd>Q</kbd><span>HIP HOP</span></div>
+          <div class="key-item"><kbd>W</kbd><span>TECHNO</span></div>
+          <div class="key-item"><kbd>E</kbd><span>DnB</span></div>
+          <div class="key-item"><kbd>R</kbd><span>BREAK</span></div>
+          <div class="key-item"><kbd>T</kbd><span>HOUSE</span></div>
+          <div class="key-item"><kbd>Y</kbd><span>TRAP</span></div>
+          <div class="key-item"><kbd>N</kbd><span>Next Pattern</span></div>
+          <div class="key-item"><kbd>B</kbd><span>Prev Pattern</span></div>
+        </div>
+      </div>
+      
+      <div class="key-section">
         <h3>🎵 Velocity (step selected)</h3>
         <div class="key-list">
           <div class="key-item"><kbd>Z</kbd><span>Ghost (40)</span></div>
@@ -988,7 +1040,7 @@ function createKeyboardSidebar() {
       
       <div class="key-section unassigned">
         <h3>⚪ Unassigned Keys</h3>
-        <div class="key-note">Available: 9, 0, Q, W, E, R, T, Y, U, I, O, P, D, F, G, J, K, L</div>
+        <div class="key-note">Available: 9, 0, U, I, O, P, D, F, G, J, K, L</div>
       </div>
     </div>
   `;

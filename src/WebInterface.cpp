@@ -248,13 +248,17 @@ bool WebInterface::begin(const char* ssid, const char* password) {
   
   server->addHandler(ws);
   
-  // Servir página de administración
+  // Servir página de administración con cache
   server->on("/adm", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(LittleFS, "/web/admin.html", "text/html");
+    AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/web/admin.html", "text/html");
+    response->addHeader("Cache-Control", "max-age=3600");  // Cache 1h
+    request->send(response);
   });
   
-  // Servir archivos estáticos desde LittleFS
-  server->serveStatic("/", LittleFS, "/web/").setDefaultFile("index.html");
+  // Servir archivos estáticos desde LittleFS con cache agresivo
+  server->serveStatic("/", LittleFS, "/web/")
+    .setDefaultFile("index.html")
+    .setCacheControl("max-age=86400");  // Cache 24h para velocidad
   
   // API REST
   server->on("/api/trigger", HTTP_POST, [](AsyncWebServerRequest *request){

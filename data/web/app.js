@@ -131,26 +131,13 @@ function initWebSocket() {
         console.log('[WS] Requesting initialization...');
         setTimeout(() => {
             sendWebSocket({ cmd: 'init' });
-        }, 300); // Esperar 300ms antes de solicitar datos
+        }, 100); // Reducido de 300ms a 100ms
         
-        let retryAttempted = false;
-        
-        // Solicitar samples después de que llegue el estado
+        // Solicitar samples de forma lazy (no bloquea UI)
         setTimeout(() => {
-            console.log('[WS] Requesting sample counts...');
+            console.log('[WS] Requesting sample counts (lazy)...');
             requestSampleCounts();
-            
-            // Reintentar UNA SOLA VEZ si no hay respuesta en 8 segundos
-            setTimeout(() => {
-                if (retryAttempted) return;
-                const totalCounts = Object.values(sampleCounts).reduce((sum, val) => sum + (val || 0), 0);
-                if (totalCounts === 0) {
-                    console.log('[WS] Retrying sample counts request...');
-                    retryAttempted = true;
-                    requestSampleCounts();
-                }
-            }, 8000);
-        }, 1500); // Esperar 1.5s antes de pedir samples (dar tiempo a que llegue init)
+        }, 800); // Reducido de 1500ms a 800ms
     };
     
     ws.onclose = () => {
@@ -1417,6 +1404,7 @@ function setupKeyboardControls() {
     // Export functions for keyboard-controls.js
     window.togglePlayPause = togglePlayPause;
     window.changePattern = changePattern;
+    window.selectPattern = selectPattern;
     window.adjustBPM = adjustBPM;
     window.adjustVolume = adjustVolume;
     window.adjustSequencerVolume = adjustSequencerVolume;
@@ -1433,6 +1421,14 @@ function changePattern(delta) {
     const safeIndex = currentIndex >= 0 ? currentIndex : 0;
     const nextIndex = (safeIndex + delta + patternButtons.length) % patternButtons.length;
     patternButtons[nextIndex].click();
+}
+
+function selectPattern(index) {
+    const patternButtons = Array.from(document.querySelectorAll('.btn-pattern'));
+    if (patternButtons.length === 0) return;
+    if (index >= 0 && index < patternButtons.length) {
+        patternButtons[index].click();
+    }
 }
 
 
