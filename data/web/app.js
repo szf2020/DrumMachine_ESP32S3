@@ -210,6 +210,87 @@ function handleWebSocketMessage(data) {
         case 'sampleLoaded':
             updatePadInfo(data);
             break;
+        case 'trackFilterSet':
+            if (data.success) {
+                const trackName = padNames[data.track] || `Track ${data.track + 1}`;
+                if (window.showToast) {
+                    window.showToast(`✅ Filtro aplicado a ${trackName}`, window.TOAST_TYPES.SUCCESS, 1500);
+                }
+                
+                // Create or update badge on track label
+                const trackLabel = document.querySelector(`.track-label[data-track="${data.track}"]`);
+                if (trackLabel && data.filterType !== undefined) {
+                    let badge = trackLabel.querySelector('.track-filter-badge');
+                    if (data.filterType === 0) {
+                        // Remove badge if NONE
+                        if (badge) badge.remove();
+                    } else {
+                        if (!badge) {
+                            badge = document.createElement('div');
+                            badge.className = 'track-filter-badge';
+                            trackLabel.appendChild(badge);
+                        }
+                        const filterIcons = ['⭕', '🔽', '🔼', '🎯', '🚫', '📊', '📈', '⛰️', '🌀', '💫'];
+                        const cutoff = data.cutoff || '?';
+                        badge.innerHTML = `${filterIcons[data.filterType]} <span class="badge-freq">${cutoff}Hz</span>`;
+                    }
+                }
+            }
+            console.log(`Track ${data.track} filter set, active filters: ${data.activeFilters}`);
+            break;
+        case 'trackFilterCleared':
+            if (window.showToast) {
+                const trackName = padNames[data.track] || `Track ${data.track + 1}`;
+                window.showToast(`🔄 Filtro eliminado de ${trackName}`, window.TOAST_TYPES.INFO, 1500);
+            }
+            console.log(`Track ${data.track} filter cleared, active filters: ${data.activeFilters}`);
+            
+            // Remove badge from track label
+            const trackLabel = document.querySelector(`.track-label[data-track="${data.track}"]`);
+            if (trackLabel) {
+                const badge = trackLabel.querySelector('.track-filter-badge');
+                if (badge) badge.remove();
+            }
+            break;
+        case 'padFilterSet':
+            if (data.success && window.showToast) {
+                const padName = padNames[data.pad] || `Pad ${data.pad + 1}`;
+                window.showToast(`✅ Filtro aplicado a ${padName}`, window.TOAST_TYPES.SUCCESS, 1500);
+            }
+            console.log(`Pad ${data.pad} filter set, active filters: ${data.activeFilters}`);
+            break;
+        case 'padFilterCleared':
+            if (window.showToast) {
+                const padName = padNames[data.pad] || `Pad ${data.pad + 1}`;
+                window.showToast(`🔄 Filtro eliminado de ${padName}`, window.TOAST_TYPES.INFO, 1500);
+            }
+            console.log(`Pad ${data.pad} filter cleared, active filters: ${data.activeFilters}`);
+            // Remove badge from pad element
+            const padElement = document.querySelector(`.pad[data-pad="${data.pad}"]`);
+            if (padElement) {
+                const badge = padElement.querySelector('.pad-filter-badge');
+                if (badge) badge.remove();
+            }
+            break;
+        case 'stepVelocitySet':
+            // Update velocity in step element
+            const stepEl = document.querySelector(`[data-track="${data.track}"][data-step="${data.step}"]`);
+            if (stepEl) {
+                stepEl.dataset.velocity = data.velocity;
+            }
+            console.log(`Step velocity set: Track ${data.track}, Step ${data.step}, Velocity ${data.velocity}`);
+            break;
+        case 'stepVelocity':
+            // Response to getStepVelocity query
+            console.log(`Step velocity: Track ${data.track}, Step ${data.step} = ${data.velocity}`);
+            break;
+        case 'filterPresets':
+            // Store filter presets for future use
+            if (data.presets) {
+                window.filterPresets = data.presets;
+                console.log(`Received ${data.presets.length} filter presets`);
+            }
+            break;
     }
     
     // Call keyboard controls handler if function exists
@@ -250,6 +331,23 @@ function loadPatternData(data) {
             }
         }
     }
+    
+    // Cargar velocidades si están disponibles
+    if (data.velocities) {
+        for (let track = 0; track < 8; track++) {
+            const velData = data.velocities[track] || data.velocities[track.toString()];
+            if (velData && Array.isArray(velData)) {
+                velData.forEach((velocity, step) => {
+                    const stepEl = document.querySelector(`[data-track="${track}"][data-step="${step}"]`);
+                    if (stepEl && stepEl.classList.contains('active')) {
+                        stepEl.dataset.velocity = velocity;
+                    }
+                });
+            }
+        }
+        console.log('Velocities loaded from pattern data');
+    }
+    
     console.log(`Total steps activated: ${activatedSteps}`);
 }
 
@@ -966,15 +1064,11 @@ function setupControls() {
             document.getElementById('currentPatternName').textContent = patternName;
             
             // Cambiar pattern directamente por WebSocket
+            // El backend envía automáticamente los datos del patrón
             sendWebSocket({
                 cmd: 'selectPattern',
                 index: pattern
             });
-            
-            // Solicitar datos del nuevo pattern después de un breve delay
-            setTimeout(() => {
-                sendWebSocket({ cmd: 'getPattern' });
-            }, 150);
         });
     });
     
@@ -1989,6 +2083,24 @@ function applyFilterPreset(filterType, cutoffFreq) {
                 window.TOAST_TYPES?.SUCCESS || 'success',
                 2500
             );
+        }
+        
+        // Create or update badge on track label
+        const trackLabel = document.querySelector(`.track-label[data-track="${track}"]`);
+        if (trackLabel) {
+            let badge = trackLabel.querySelector('.track-filter-badge');
+            if (filterType === 0) {
+                // Remove badge if NONE
+                if (badge) badge.remove();
+            } else {
+                if (!badge) {
+                    badge = document.createElement('div');
+                    badge.className = 'track-filter-badge';
+                    trackLabel.appendChild(badge);
+                }
+                const filterIcons = ['⭕', '🔽', '🔼', '🎯', '🚫', '📊', '📈', '⛰️', '🌀', '💫'];
+                badge.innerHTML = `${filterIcons[filterType]} <span class="badge-freq">${cutoffFreq}Hz</span>`;
+            }
         }
         
         return;

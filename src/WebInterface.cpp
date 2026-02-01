@@ -752,7 +752,33 @@ void WebInterface::processCommand(const JsonDocument& doc) {
     int pattern = doc["index"];
     sequencer.selectPattern(pattern);
     delay(50);
+    
+    // Enviar estado actualizado
     broadcastSequencerState();
+    
+    // Enviar datos del patrón (matriz de steps)
+    StaticJsonDocument<6144> patternDoc;
+    patternDoc["type"] = "pattern";
+    patternDoc["index"] = pattern;
+    
+    for (int track = 0; track < 16; track++) {
+      JsonArray trackSteps = patternDoc.createNestedArray(String(track));
+      for (int step = 0; step < 16; step++) {
+        trackSteps.add(sequencer.getStep(track, step));
+      }
+    }
+    
+    JsonObject velocitiesObj = patternDoc.createNestedObject("velocities");
+    for (int track = 0; track < 16; track++) {
+      JsonArray trackVels = velocitiesObj.createNestedArray(String(track));
+      for (int step = 0; step < 16; step++) {
+        trackVels.add(sequencer.getStepVelocity(track, step));
+      }
+    }
+    
+    String patternOutput;
+    serializeJson(patternDoc, patternOutput);
+    ws->textAll(patternOutput);
   }
   else if (cmd == "loadSample") {
     const char* family = doc["family"];
@@ -880,12 +906,15 @@ void WebInterface::processCommand(const JsonDocument& doc) {
     
     bool success = audioEngine.setTrackFilter(track, (FilterType)filterType, cutoff, resonance, gain);
     
-    // Send response
-    StaticJsonDocument<128> responseDoc;
+    // Send response with filter parameters for UI badge
+    StaticJsonDocument<256> responseDoc;
     responseDoc["type"] = "trackFilterSet";
     responseDoc["track"] = track;
     responseDoc["success"] = success;
     responseDoc["activeFilters"] = audioEngine.getActiveTrackFiltersCount();
+    responseDoc["filterType"] = filterType;
+    responseDoc["cutoff"] = (int)cutoff;
+    responseDoc["resonance"] = resonance;
     
     String output;
     serializeJson(responseDoc, output);

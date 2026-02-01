@@ -3159,6 +3159,31 @@ body.mono-mode .info-item {
     border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
+/* Track Filter Badge */
+.track-filter-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    background: linear-gradient(135deg, #8a2be2, #4b0082);
+    color: #fff;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-size: 0.75em;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    border: 2px solid rgba(138, 43, 226, 0.6);
+    box-shadow: 0 0 10px rgba(138, 43, 226, 0.5);
+    z-index: 10;
+    pointer-events: none;
+}
+
+.track-filter-badge .badge-freq {
+    font-size: 0.9em;
+    color: rgba(255, 255, 255, 0.9);
+}
+
 .active-filter-badge .filter-target {
     font-weight: bold;
     color: #fff;
